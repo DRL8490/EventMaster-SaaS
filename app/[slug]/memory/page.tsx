@@ -28,12 +28,12 @@ export default function MemoryPage() {
   );
 
   const TinyWatermark = () => (
-    <div className="absolute -top-1 -right-3 bg-gradient-to-r from-pink-500 to-yellow-400 text-white text-[5px] md:text-[6px] font-black px-1.5 py-0.5 rounded-full shadow-sm transform rotate-6 border border-white z-0 pointer-events-none whitespace-nowrap tracking-wider">
+    <div className="absolute top-0 -right-2 bg-gradient-to-r from-pink-500 to-yellow-400 text-white text-[5px] md:text-[6px] font-black px-1.5 py-0.5 rounded-full shadow-sm transform rotate-6 border border-white z-0 pointer-events-none whitespace-nowrap tracking-wider">
       🎉 NYLA'S 5TH
     </div>
   );
 
-  // THE ULTIMATE SCREENSHOT FIX (Now applied to EVERYTHING!)
+  // THE ULTIMATE iOS SAFARI FIX: Base64 Swap + Cache Busting
   const captureAndDownload = async (elementId: string, filename: string) => {
     const element = document.getElementById(elementId);
     if (!element) return;
@@ -43,6 +43,30 @@ export default function MemoryPage() {
     if (btn) btn.innerText = "⏳";
 
     try {
+      // 1. SAFARI BYPASS: Convert all Supabase images to trusted local Base64 strings first
+      const images = Array.from(element.getElementsByTagName('img'));
+      const originalSrcs = images.map(img => img.src);
+
+      await Promise.all(images.map(async (img) => {
+        if (img.src.startsWith('http')) {
+          try {
+            const res = await fetch(img.src, { mode: 'cors', cache: 'no-cache' });
+            const blob = await res.blob();
+            return new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                img.src = reader.result as string;
+                resolve(true);
+              };
+              reader.readAsDataURL(blob);
+            });
+          } catch (err) {
+            console.warn("Could not pre-fetch image for iOS bypass", err);
+          }
+        }
+      }));
+
+      // 2. Take the screenshot (Safari will now trust the Base64 images!)
       const dataUrl = await toPng(element, {
           cacheBust: true, 
           pixelRatio: 3, 
@@ -55,6 +79,12 @@ export default function MemoryPage() {
           }
       });
 
+      // 3. Put the original Supabase URLs back so the live site stays fast
+      images.forEach((img, index) => {
+        img.src = originalSrcs[index];
+      });
+
+      // 4. Download!
       const link = document.createElement("a");
       link.href = dataUrl;
       link.download = filename;
@@ -157,7 +187,6 @@ export default function MemoryPage() {
                             
                             <LargeWatermark />
 
-                            {/* Moved Button to Top-Left */}
                             <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                                 <button 
                                     onClick={() => captureAndDownload(`raffle-card-${w.id}`, `Nylas5th-${w.nickname}-Winner.png`)}
@@ -183,7 +212,6 @@ export default function MemoryPage() {
                             
                             <LargeWatermark />
 
-                            {/* Moved Button to Top-Left */}
                             <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                                 <button 
                                     onClick={() => captureAndDownload(`game-card-${g.id}`, `Nylas5th-${g.name}-Winner.png`)}
@@ -203,7 +231,7 @@ export default function MemoryPage() {
             </div>
         </div>
 
-        {/* SECTION 2: LIVE GUEST GALLERY (NOW SCREENSHOT CAPTURED!) */}
+        {/* SECTION 2: LIVE GUEST GALLERY */}
         <div className="space-y-6 pt-8">
             <div className="flex items-end justify-between border-b-2 border-pink-500/30 pb-2">
                 <h2 className="text-2xl font-black text-pink-400 uppercase tracking-widest">📸 Live Gallery</h2>
@@ -225,7 +253,6 @@ export default function MemoryPage() {
                             
                             <LargeWatermark />
 
-                            {/* Moved Button to Top-Left */}
                             <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
                                 <button 
                                     onClick={() => captureAndDownload(`live-card-${photo.id}`, `Nylas5th-Memory-${photo.id}.png`)}
@@ -247,20 +274,23 @@ export default function MemoryPage() {
             )}
         </div>
 
-        {/* SECTION 3: THE BUBBLE SQUAD */}
+        {/* SECTION 3: THE BUBBLE SQUAD (FIXED PADDING FOR CUTOFF) */}
         <div className="space-y-6 pt-8">
             <h2 className="text-2xl font-black text-blue-400 uppercase tracking-widest border-b-2 border-blue-500/30 pb-2">🫧 The Party Squad</h2>
-            <div className="flex flex-wrap justify-center gap-5 md:gap-8 pt-4">
+            <div className="flex flex-wrap justify-center gap-2 md:gap-4 pt-4">
                 {allGuests.map(g => (
-                    <div id={`bubble-card-${g.id}`} key={`guest-${g.id}`} className="flex flex-col items-center w-20 md:w-24 group relative p-1 bg-transparent">
-                        <div className="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden border-4 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.4)] bg-white relative">
-                            <img src={g.photo_url} alt={g.nickname} className="w-full h-full object-cover" crossOrigin="anonymous" />
-                        </div>
+                    {/* ADDED p-4 pt-6 pr-6 to expand the camera's bounding box and stop the cutoff! */}
+                    <div id={`bubble-card-${g.id}`} key={`guest-${g.id}`} className="flex flex-col items-center w-auto group relative p-4 pt-6 pr-6 bg-transparent">
                         
-                        <TinyWatermark />
+                        <div className="relative">
+                            <div className="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden border-4 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.4)] bg-white relative">
+                                <img src={g.photo_url} alt={g.nickname} className="w-full h-full object-cover" crossOrigin="anonymous" />
+                            </div>
+                            
+                            <TinyWatermark />
+                        </div>
 
-                        {/* Moved Button to Top-Left */}
-                        <div data-ignore="true" className="absolute -top-1 left-0 md:-left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
+                        <div data-ignore="true" className="absolute top-1 left-0 md:-left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
                             <button 
                                 onClick={() => captureAndDownload(`bubble-card-${g.id}`, `Nylas5th-${g.nickname}-Avatar.png`)}
                                 className="bg-black/60 hover:bg-black/80 text-white p-1.5 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-[10px]"
@@ -270,7 +300,7 @@ export default function MemoryPage() {
                             </button>
                         </div>
 
-                        <p className="mt-2 text-center text-[10px] md:text-xs font-black text-gray-300 uppercase tracking-wider truncate w-full">{g.nickname}</p>
+                        <p className="mt-2 text-center text-[10px] md:text-xs font-black text-gray-300 uppercase tracking-wider truncate w-20 md:w-24">{g.nickname}</p>
                     </div>
                 ))}
             </div>
