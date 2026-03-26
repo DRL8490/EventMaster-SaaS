@@ -6,12 +6,13 @@ import { supabase } from "../../../lib/supabaseClient";
 export default function MemoryPage() {
   const params = useParams();
   
-  // SAAS FIX 1: Explicitly tell TypeScript this is a string to prevent build errors
-  const eventSlug = params?.slug as string;
+  // Safely extract the slug (handles both string and array formats just in case)
+  const eventSlug = typeof params?.slug === 'string' ? params.slug : Array.isArray(params?.slug) ? params.slug[0] : "";
 
   const [eventId, setEventId] = useState<number | null>(null);
   const [eventName, setEventName] = useState("");
   const [invalidEvent, setInvalidEvent] = useState(false);
+  const [debugInfo, setDebugInfo] = useState(""); // NEW: X-Ray Diagnostic State
 
   const [raffleWinners, setRaffleWinners] = useState<any[]>([]);
   const [gameWinners, setGameWinners] = useState<any[]>([]);
@@ -20,8 +21,6 @@ export default function MemoryPage() {
 
   // 1. GET THE EVENT ID & NAME (Runs only once)
   useEffect(() => {
-    // SAAS FIX 2: The Race Condition Bouncer! 
-    // Wait until Next.js has successfully extracted the slug from the URL before querying Supabase.
     if (!eventSlug) return;
 
     const fetchEventId = async () => {
@@ -31,11 +30,14 @@ export default function MemoryPage() {
         .eq("slug", eventSlug)
         .single();
 
+      // NEW: If it fails, capture the exact error!
       if (error || !eventData) {
+        setDebugInfo(`Slug Searched: "${eventSlug}" | Supabase Error: ${error?.message || error?.details || error?.hint || "No data returned"}`);
         setInvalidEvent(true);
         setLoading(false);
         return;
       }
+      
       setEventId(eventData.id);
       setEventName(eventData.name);
     };
@@ -43,7 +45,7 @@ export default function MemoryPage() {
     fetchEventId();
   }, [eventSlug]);
 
-  // 2. FETCH MEMORIES FOR THIS SPECIFIC EVENT (Runs after we have the eventId)
+  // 2. FETCH MEMORIES FOR THIS SPECIFIC EVENT
   useEffect(() => {
     if (!eventId) return;
 
@@ -69,10 +71,16 @@ export default function MemoryPage() {
 
   if (invalidEvent) return (
     <div className="fixed inset-0 w-full flex flex-col items-center justify-center p-6 bg-gray-900 text-center">
-      <div className="bg-black/60 backdrop-blur-lg p-8 rounded-[2rem] border border-red-500/50 shadow-2xl">
+      <div className="bg-black/60 backdrop-blur-lg p-8 rounded-[2rem] border border-red-500/50 shadow-2xl max-w-2xl w-full">
         <h1 className="text-5xl mb-4">⚠️</h1>
         <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Event Not Found</h2>
-        <p className="text-gray-400 mt-2 font-bold text-sm">Check the URL and try again.</p>
+        <p className="text-gray-400 mt-2 font-bold text-sm mb-6">Check the URL and try again.</p>
+        
+        {/* NEW: Diagnostic Box */}
+        <div className="bg-red-950/50 border border-red-500/50 p-4 rounded-xl text-left">
+            <p className="text-red-400 font-black text-xs uppercase tracking-widest mb-2">System Diagnostic:</p>
+            <p className="text-red-200 font-mono text-sm break-words">{debugInfo}</p>
+        </div>
       </div>
     </div>
   );
@@ -80,7 +88,6 @@ export default function MemoryPage() {
   return (
     <div className="min-h-[100dvh] bg-gray-900 font-sans text-white p-4 md:p-8 pb-20 selection:bg-purple-500">
       <div className="max-w-4xl mx-auto space-y-12">
-        
         {/* HEADER */}
         <div className="text-center space-y-2 mt-6">
           <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 uppercase tracking-tighter drop-shadow-sm">
@@ -92,13 +99,10 @@ export default function MemoryPage() {
         {/* SECTION 1: THE WINNERS */}
         <div className="space-y-6">
             <h2 className="text-2xl font-black text-yellow-400 uppercase tracking-widest border-b-2 border-yellow-500/30 pb-2">🏆 Wall of Fame</h2>
-            
             {raffleWinners.length === 0 && gameWinners.length === 0 && (
                 <p className="text-gray-500 italic font-bold text-center py-8">Winners will appear here once the games begin!</p>
             )}
-
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
-                {/* Raffle Winners (Tilted Right) */}
                 {raffleWinners.map(w => (
                     <div key={`raffle-${w.id}`} className="bg-white p-2 md:p-3 rounded-2xl shadow-xl transform rotate-2 hover:rotate-0 hover:scale-105 transition-all cursor-pointer">
                         <img src={w.proof_url} alt={w.nickname} className="w-full aspect-square object-cover rounded-xl border-2 border-gray-100" />
@@ -108,8 +112,6 @@ export default function MemoryPage() {
                         </div>
                     </div>
                 ))}
-
-                {/* Game Winners (Tilted Left) */}
                 {gameWinners.map(g => (
                     <div key={`game-${g.id}`} className="bg-white p-2 md:p-3 rounded-2xl shadow-xl transform -rotate-2 hover:rotate-0 hover:scale-105 transition-all cursor-pointer">
                         <img src={g.proof_url} alt={g.name} className="w-full aspect-square object-cover rounded-xl border-2 border-gray-100" />
@@ -125,7 +127,6 @@ export default function MemoryPage() {
         {/* SECTION 2: THE BUBBLE SQUAD */}
         <div className="space-y-6 pt-8">
             <h2 className="text-2xl font-black text-blue-400 uppercase tracking-widest border-b-2 border-blue-500/30 pb-2">🫧 The Party Squad</h2>
-            
             <div className="flex flex-wrap justify-center gap-5 md:gap-8 pt-4">
                 {allGuests.map(g => (
                     <div key={`guest-${g.id}`} className="flex flex-col items-center w-20 md:w-24 group">
@@ -138,7 +139,6 @@ export default function MemoryPage() {
             </div>
             {allGuests.length === 0 && <p className="text-center text-gray-500 font-bold">No guests have arrived yet!</p>}
         </div>
-
       </div>
     </div>
   );
