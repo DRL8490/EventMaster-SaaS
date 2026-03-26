@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
+import html2canvas from "html2canvas";
 
 export default function MemoryPage() {
   const params = useParams();
@@ -11,7 +12,6 @@ export default function MemoryPage() {
   const [eventId, setEventId] = useState<number | null>(null);
   const [eventName, setEventName] = useState("");
   const [invalidEvent, setInvalidEvent] = useState(false);
-  const [debugInfo, setDebugInfo] = useState("");
 
   const [raffleWinners, setRaffleWinners] = useState<any[]>([]);
   const [gameWinners, setGameWinners] = useState<any[]>([]);
@@ -20,21 +20,46 @@ export default function MemoryPage() {
   
   const [loading, setLoading] = useState(true);
 
-  // SECURE DOWNLOAD FUNCTION
-  const handleDownload = async (url: string, filename: string) => {
+  // NEW: THE "SCREENSHOT" DOWNLOAD FUNCTION
+  const captureAndDownload = async (elementId: string, filename: string) => {
+    const element = document.getElementById(elementId);
+    if (!element) return;
+
+    try {
+      // useCORS is critical here so it can read the Supabase images!
+      const canvas = await html2canvas(element, { 
+          useCORS: true, 
+          backgroundColor: null, // Keeps rounded corners transparent
+          scale: 3 // High resolution for Retina displays
+      });
+      
+      const image = canvas.toDataURL("image/png");
+      const link = document.createElement("a");
+      link.href = image;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Error capturing image:", error);
+      alert("Oops! Couldn't capture the styled image. Try again!");
+    }
+  };
+
+  // KEEP THE OLD FUNCTION FOR THE RAW GALLERY UPLOADS
+  const handleRawDownload = async (url: string, filename: string) => {
     try {
       const response = await fetch(url);
       const blob = await response.blob();
       const blobUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = blobUrl;
-      link.download = filename || 'party-memory.jpg';
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(blobUrl);
     } catch (error) {
-      console.error("Error downloading image:", error);
       window.open(url, '_blank'); 
     }
   };
@@ -43,19 +68,12 @@ export default function MemoryPage() {
     if (!eventSlug) return;
 
     const fetchEventId = async () => {
-      const { data: eventData, error } = await supabase
-        .from("events")
-        .select("id, name")
-        .eq("slug", eventSlug)
-        .single();
-
+      const { data: eventData, error } = await supabase.from("events").select("id, name").eq("slug", eventSlug).single();
       if (error || !eventData) {
-        setDebugInfo(`Slug Searched: "${eventSlug}" | Supabase Error: ${error?.message || error?.details || error?.hint || "No data returned"}`);
         setInvalidEvent(true);
         setLoading(false);
         return;
       }
-      
       setEventId(eventData.id);
       setEventName(eventData.name);
     };
@@ -79,10 +97,7 @@ export default function MemoryPage() {
       if (games) {
         setGameWinners(games.filter((g: any) => g.proof_url));
       }
-      
-      if (uploads) {
-        setGuestUploads(uploads);
-      }
+      if (uploads) setGuestUploads(uploads);
 
       setLoading(false);
     };
@@ -90,19 +105,11 @@ export default function MemoryPage() {
     fetchMemories();
 
     const channel = supabase.channel(`public:gallery_photos:event_id=eq.${eventId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'gallery_photos', filter: `event_id=eq.${eventId}` },
-        (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'gallery_photos', filter: `event_id=eq.${eventId}` }, (payload) => {
           setGuestUploads((current) => [payload.new, ...current]);
-        }
-      )
-      .subscribe();
+      }).subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-
+    return () => { supabase.removeChannel(channel); };
   }, [eventId]);
 
   if (loading) return <div className="min-h-[100dvh] flex items-center justify-center bg-gray-900 text-blue-400 font-black animate-pulse uppercase tracking-widest">Loading Memories...</div>;
@@ -112,12 +119,6 @@ export default function MemoryPage() {
       <div className="bg-black/60 backdrop-blur-lg p-8 rounded-[2rem] border border-red-500/50 shadow-2xl max-w-2xl w-full">
         <h1 className="text-5xl mb-4">⚠️</h1>
         <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Event Not Found</h2>
-        <p className="text-gray-400 mt-2 font-bold text-sm mb-6">Check the URL and try again.</p>
-        
-        <div className="bg-red-950/50 border border-red-500/50 p-4 rounded-xl text-left">
-            <p className="text-red-400 font-black text-xs uppercase tracking-widest mb-2">System Diagnostic:</p>
-            <p className="text-red-200 font-mono text-sm break-words">{debugInfo}</p>
-        </div>
       </div>
     </div>
   );
@@ -142,16 +143,19 @@ export default function MemoryPage() {
             )}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
                 
-                {/* RAFFLE WINNERS WITH DOWNLOAD */}
+                {/* RAFFLE WINNERS */}
                 {raffleWinners.map(w => (
-                    <div key={`raffle-${w.id}`} className="bg-white p-2 md:p-3 rounded-2xl shadow-xl transform rotate-2 hover:rotate-0 transition-all group">
+                    // 1. ADDED ID TO CAPTURE THE WHOLE CARD
+                    <div id={`raffle-card-${w.id}`} key={`raffle-${w.id}`} className="bg-white p-2 md:p-3 rounded-2xl shadow-xl transform rotate-2 hover:rotate-0 transition-all group relative">
                         <div className="relative overflow-hidden rounded-xl border-2 border-gray-100">
-                            <img src={w.proof_url} alt={w.nickname} className="w-full aspect-square object-cover" />
-                            <div className="absolute top-2 right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                            <img src={w.proof_url} alt={w.nickname} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
+                            
+                            {/* 2. ADDED DATA-HTML2CANVAS-IGNORE SO THE BUTTON DOESN'T SHOW IN THE SCREENSHOT */}
+                            <div data-html2canvas-ignore="true" className="absolute top-2 right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                                 <button 
-                                    onClick={() => handleDownload(w.proof_url, `${w.nickname}-Winner.jpg`)}
+                                    onClick={() => captureAndDownload(`raffle-card-${w.id}`, `${w.nickname}-Winner.png`)}
                                     className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm active:scale-90 shadow-lg text-xs md:text-sm"
-                                    title="Download Photo"
+                                    title="Download Card"
                                 >
                                     ⬇️
                                 </button>
@@ -164,16 +168,16 @@ export default function MemoryPage() {
                     </div>
                 ))}
 
-                {/* GAME WINNERS WITH DOWNLOAD */}
+                {/* GAME WINNERS */}
                 {gameWinners.map(g => (
-                    <div key={`game-${g.id}`} className="bg-white p-2 md:p-3 rounded-2xl shadow-xl transform -rotate-2 hover:rotate-0 transition-all group">
+                    <div id={`game-card-${g.id}`} key={`game-${g.id}`} className="bg-white p-2 md:p-3 rounded-2xl shadow-xl transform -rotate-2 hover:rotate-0 transition-all group relative">
                         <div className="relative overflow-hidden rounded-xl border-2 border-gray-100">
-                            <img src={g.proof_url} alt={g.name} className="w-full aspect-square object-cover" />
-                            <div className="absolute top-2 right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                            <img src={g.proof_url} alt={g.name} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
+                            <div data-html2canvas-ignore="true" className="absolute top-2 right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                                 <button 
-                                    onClick={() => handleDownload(g.proof_url, `${g.name}-Winner.jpg`)}
+                                    onClick={() => captureAndDownload(`game-card-${g.id}`, `${g.name}-Winner.png`)}
                                     className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm active:scale-90 shadow-lg text-xs md:text-sm"
-                                    title="Download Photo"
+                                    title="Download Card"
                                 >
                                     ⬇️
                                 </button>
@@ -188,7 +192,7 @@ export default function MemoryPage() {
             </div>
         </div>
 
-        {/* SECTION 2: LIVE GUEST GALLERY WITH TOP-RIGHT DOWNLOAD */}
+        {/* SECTION 2: LIVE GUEST GALLERY (STAYS AS RAW UPLOADS) */}
         <div className="space-y-6 pt-8">
             <div className="flex items-end justify-between border-b-2 border-purple-500/30 pb-2">
                 <h2 className="text-2xl font-black text-purple-400 uppercase tracking-widest">📸 Live Gallery</h2>
@@ -206,12 +210,11 @@ export default function MemoryPage() {
                 <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4 pt-4">
                     {guestUploads.map((photo) => (
                         <div key={`photo-${photo.id}`} className="break-inside-avoid relative group rounded-2xl overflow-hidden shadow-lg border border-gray-700 bg-gray-800">
-                            <img src={photo.photo_url} alt="Guest Upload" className="w-full h-auto object-cover" loading="lazy" />
+                            <img src={photo.photo_url} alt="Guest Upload" className="w-full h-auto object-cover" loading="lazy" crossOrigin="anonymous" />
                             
-                            {/* NEW: Download Button in Top Right */}
                             <div className="absolute top-2 right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
                                 <button 
-                                    onClick={() => handleDownload(photo.photo_url, `PartyMaster-${photo.id}.jpg`)}
+                                    onClick={() => handleRawDownload(photo.photo_url, `PartyMaster-${photo.id}.jpg`)}
                                     className="bg-black/50 hover:bg-black/70 text-white p-2 md:p-2.5 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-xs md:text-sm"
                                     title="Download Photo"
                                 >
@@ -219,7 +222,6 @@ export default function MemoryPage() {
                                 </button>
                             </div>
 
-                            {/* Name Overlay at Bottom */}
                             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 flex items-end transition-all duration-300 opacity-100 translate-y-0 md:opacity-0 md:translate-y-2 md:group-hover:opacity-100 md:group-hover:translate-y-0">
                                 <p className="text-white font-black text-xs md:text-sm uppercase tracking-widest truncate drop-shadow-md pb-1">
                                     {photo.uploader_name || "Guest"}
@@ -231,20 +233,20 @@ export default function MemoryPage() {
             )}
         </div>
 
-        {/* SECTION 3: THE BUBBLE SQUAD WITH DOWNLOAD BUTTONS */}
+        {/* SECTION 3: THE BUBBLE SQUAD (NOW DOWNLOADS THE FULL AVATAR+NAME) */}
         <div className="space-y-6 pt-8">
             <h2 className="text-2xl font-black text-blue-400 uppercase tracking-widest border-b-2 border-blue-500/30 pb-2">🫧 The Party Squad</h2>
             <div className="flex flex-wrap justify-center gap-5 md:gap-8 pt-4">
                 {allGuests.map(g => (
-                    <div key={`guest-${g.id}`} className="flex flex-col items-center w-20 md:w-24 group relative">
+                    // WRAPPED EVERYTHING IN A DIV TO SCREENSHOT THE BUBBLE AND THE TEXT TOGETHER
+                    <div id={`bubble-card-${g.id}`} key={`guest-${g.id}`} className="flex flex-col items-center w-20 md:w-24 group relative p-1">
                         <div className="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden border-4 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.4)] bg-white relative">
-                            <img src={g.photo_url} alt={g.nickname} className="w-full h-full object-cover" />
+                            <img src={g.photo_url} alt={g.nickname} className="w-full h-full object-cover" crossOrigin="anonymous" />
                         </div>
                         
-                        {/* Tiny Download Button for Squab Bubbles */}
-                        <div className="absolute -top-1 right-0 md:-right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
+                        <div data-html2canvas-ignore="true" className="absolute -top-1 right-0 md:-right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
                             <button 
-                                onClick={() => handleDownload(g.photo_url, `${g.nickname}-Avatar.jpg`)}
+                                onClick={() => captureAndDownload(`bubble-card-${g.id}`, `${g.nickname}-Avatar.png`)}
                                 className="bg-black/60 hover:bg-black/80 text-white p-1.5 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-[10px]"
                                 title="Download Avatar"
                             >
