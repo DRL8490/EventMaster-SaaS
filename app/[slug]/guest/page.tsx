@@ -191,17 +191,33 @@ export default function GuestPage() {
     <div className="fixed inset-0 w-full h-[100dvh] bg-gray-900 flex flex-col overflow-hidden font-sans"> 
       {isSuccess ? (
         <div className="flex-1 w-full flex flex-col items-center justify-center p-4" style={{ backgroundImage: bgImageUrl ? `url(${bgImageUrl})` : 'none', backgroundSize: "cover", backgroundPosition: "center" }}>
-          <div className="bg-white/95 backdrop-blur-md p-6 rounded-[2.5rem] shadow-2xl border-4 border-green-400 text-center animate-in zoom-in duration-500 max-w-sm w-full flex flex-col items-center">
+          <div className="bg-white/95 backdrop-blur-md p-6 rounded-[2.5rem] shadow-2xl border-4 border-green-400 text-center animate-in zoom-in duration-500 max-w-sm w-full flex flex-col items-center relative">
             <h2 className="text-2xl font-black text-green-600 uppercase leading-none mb-4">You're Checked In!</h2>
             
-            <div className="relative w-40 h-40 mx-auto rounded-full overflow-hidden border-8 border-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.6)] animate-bounce mb-4 bg-white">
-              <img src={uploadedPhotoUrl} className="w-full h-full object-cover p-2" alt="Your Bubble" />
-              <div className="absolute top-2 left-2 bg-blue-600 text-white font-black px-2 py-0.5 rounded-full text-[9px] uppercase shadow-md border border-white">{category}</div>
-              <div className="absolute bottom-0 w-full bg-black/60 backdrop-blur-sm text-white font-black text-center py-1 text-xs uppercase">{nickname}</div>
+            {/* --- FIX START --- */}
+            {/* New Parent Container (square) controls position and animation */}
+            <div className="relative w-40 h-40 mx-auto animate-bounce mb-4 group">
+              
+              {/* 1. The Circular Bubble (keeps overflow-hidden for image and banner) */}
+              <div className="w-full h-full rounded-full overflow-hidden border-8 border-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.6)] bg-white relative z-0">
+                {/* Image fills the circle cleanly */}
+                <img src={uploadedPhotoUrl} className="w-full h-full object-cover" alt="Your Bubble" />
+                <div className="absolute bottom-0 w-full bg-black/60 backdrop-blur-sm text-white font-black text-center py-1 text-xs uppercase">{nickname}</div>
+              </div>
+
+              {/* 2. The Unclipped Watermark (positioned relative to the parent, floats on top) */}
+              {/* This is z-10 so it's over the border, and uses negative top/left to "pin" it outside the main circle slightly. Added subtle tilt for magic! */}
+              <div className="absolute -top-1 -left-1 bg-blue-600 text-white font-black px-2.5 py-1 rounded-full text-[10px] uppercase shadow-xl border-2 border-white z-10 transform -rotate-12 transition-transform group-hover:rotate-0">
+                {category}
+              </div>
+                
+              {/* Subtle sheen overlay on hover */}
+              <div className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity z-0"></div>
             </div>
+            {/* --- FIX END --- */}
 
             <p className="text-gray-600 font-bold mb-6 text-sm">Look for your bubble on the big screen!</p>
-            <button onClick={() => { setIsSuccess(false); setFullName(""); setNickname(""); setCategory("Adults"); setPhoto(null); }} className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-black text-sm uppercase shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
+            <button onClick={() => { setIsSuccess(false); setFullName(""); setNickname(""); setCategory("Adults"); setPhoto(null); }} className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-black text-sm uppercase shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 relative z-20">
               ➕ CHECK IN NEXT GUEST
             </button>
           </div>
