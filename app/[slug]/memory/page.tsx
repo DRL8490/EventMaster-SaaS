@@ -180,8 +180,8 @@ export default function MemoryPage() {
                         <div key={`photo-${photo.id}`} className="break-inside-avoid relative group rounded-2xl overflow-hidden shadow-lg border border-gray-700 bg-gray-800">
                             <img src={photo.photo_url} alt="Guest Upload" className="w-full h-auto object-cover transform group-hover:scale-105 transition-transform duration-500" loading="lazy" />
                             
-                            {/* NEW: Overlay with Name AND Download Button */}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 translate-y-2 group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transition-all duration-300 flex justify-between items-end">
+{/* Overlay with Name AND Download Button (FIXED FOR MOBILE) */}
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 flex justify-between items-end transition-all duration-300 opacity-100 translate-y-0 md:opacity-0 md:translate-y-2 md:group-hover:opacity-100 md:group-hover:translate-y-0">
                                 <p className="text-white font-black text-xs uppercase tracking-widest truncate drop-shadow-md pr-2 pb-1">
                                     {photo.uploader_name || "Guest"}
                                 </p>
@@ -190,7 +190,7 @@ export default function MemoryPage() {
                                         e.preventDefault(); 
                                         handleDownload(photo.photo_url, `PartyMaster-${photo.id}.jpg`); 
                                     }}
-                                    className="bg-white/20 hover:bg-white/40 text-white p-2 md:p-3 rounded-full backdrop-blur-sm transition-colors"
+                                    className="bg-white/20 hover:bg-white/40 active:bg-white/50 text-white p-2 md:p-3 rounded-full backdrop-blur-sm transition-all active:scale-90"
                                     title="Download Photo"
                                 >
                                     ⬇️
