@@ -274,14 +274,14 @@ export default function MemoryPage() {
             )}
         </div>
 
-        {/* SECTION 3: THE BUBBLE SQUAD (FIXED PADDING FOR CUTOFF) */}
+{/* SECTION 3: THE BUBBLE SQUAD (FIXED PADDING FOR CUTOFF) */}
         <div className="space-y-6 pt-8">
             <h2 className="text-2xl font-black text-blue-400 uppercase tracking-widest border-b-2 border-blue-500/30 pb-2">🫧 The Party Squad</h2>
             <div className="flex flex-wrap justify-center gap-2 md:gap-4 pt-4">
                 {allGuests.map(g => (
-                    {/* ADDED p-4 pt-6 pr-6 to expand the camera's bounding box and stop the cutoff! */}
                     <div id={`bubble-card-${g.id}`} key={`guest-${g.id}`} className="flex flex-col items-center w-auto group relative p-4 pt-6 pr-6 bg-transparent">
                         
+                        {/* The comment is now safely inside the div! */}
                         <div className="relative">
                             <div className="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden border-4 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.4)] bg-white relative">
                                 <img src={g.photo_url} alt={g.nickname} className="w-full h-full object-cover" crossOrigin="anonymous" />
