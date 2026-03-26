@@ -28,11 +28,10 @@ export default function MemoryPage() {
   );
 
   const TinyWatermark = () => (
-    <div className="absolute top-0 -right-2 bg-gradient-to-r from-pink-500 to-yellow-400 text-white text-[5px] md:text-[6px] font-black px-1.5 py-0.5 rounded-full shadow-sm transform rotate-6 border border-white z-0 pointer-events-none whitespace-nowrap tracking-wider">
+    <div className="absolute top-0 -right-4 bg-gradient-to-r from-pink-500 to-yellow-400 text-white text-[8px] md:text-[10px] font-black px-2 py-1 rounded-full shadow-md transform rotate-6 border-2 border-white z-0 pointer-events-none whitespace-nowrap tracking-wider">
       🎉 NYLA'S 5TH
     </div>
   );
-
 // THE ULTIMATE MOBILE FIX: Cache-Busting Fetch + Base64 + Double Render + RAM Saver
   const captureAndDownload = async (elementId: string, filename: string) => {
     const element = document.getElementById(elementId);
@@ -270,8 +269,8 @@ export default function MemoryPage() {
                                 </button>
                             </div>
 
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 flex items-end transition-all duration-300">
-                                <p className="text-white font-black text-xs md:text-sm uppercase tracking-widest truncate drop-shadow-md pb-1">
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-4 flex items-end transition-all duration-300">
+                                <p className="text-white font-black text-xs md:text-sm uppercase tracking-wider line-clamp-2 break-words drop-shadow-md pb-1 w-full">
                                     {photo.uploader_name || "Guest"}
                                 </p>
                             </div>
@@ -286,31 +285,33 @@ export default function MemoryPage() {
             <h2 className="text-2xl font-black text-blue-400 uppercase tracking-widest border-b-2 border-blue-500/30 pb-2">🫧 The Party Squad</h2>
             <div className="flex flex-wrap justify-center gap-2 md:gap-4 pt-4">
                 {allGuests.map(g => (
-                    <div id={`bubble-card-${g.id}`} key={`guest-${g.id}`} className="flex flex-col items-center w-auto group relative p-4 pt-6 pr-6 bg-transparent">
+                    <div id={`bubble-card-${g.id}`} key={`guest-${g.id}`} className="flex flex-col items-center w-auto group relative p-4 pt-8 pr-8 bg-transparent">
                         
-                        {/* The comment is now safely inside the div! */}
                         <div className="relative">
-                            <div className="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden border-4 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.4)] bg-white relative">
+                            {/* DOUBLED THE SIZE: w-32 h-32 (Mobile) and w-40 h-40 (Desktop) */}
+                            <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.5)] bg-white relative">
                                 <img src={g.photo_url} alt={g.nickname} className="w-full h-full object-cover" crossOrigin="anonymous" />
                             </div>
                             
                             <TinyWatermark />
                         </div>
 
-                        <div data-ignore="true" className="absolute top-1 left-0 md:-left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
+                        <div data-ignore="true" className="absolute top-2 left-0 md:-left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
                             <button 
                                 onClick={() => captureAndDownload(`bubble-card-${g.id}`, `Nylas5th-${g.nickname}-Avatar.png`)}
-                                className="bg-black/60 hover:bg-black/80 text-white p-1.5 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-[10px]"
+                                className="bg-black/60 hover:bg-black/80 text-white p-2 md:p-3 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-xs"
                                 title="Download Avatar"
                             >
                                 ⬇️
                             </button>
                         </div>
 
-                        <p className="mt-2 text-center text-[10px] md:text-xs font-black text-gray-300 uppercase tracking-wider truncate w-20 md:w-24">{g.nickname}</p>
+                        {/* Doubled the text width container so longer names fit under the giant bubble */}
+                        <p className="mt-3 text-center text-xs md:text-sm font-black text-gray-300 uppercase tracking-wider truncate w-32 md:w-40">
+                            {g.nickname}
+                        </p>
                     </div>
-                ))}
-            </div>
+                ))}            </div>
             {allGuests.length === 0 && <p className="text-center text-gray-500 font-bold">No guests have arrived yet!</p>}
         </div>
 
