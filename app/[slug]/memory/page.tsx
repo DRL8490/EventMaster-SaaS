@@ -33,7 +33,7 @@ export default function MemoryPage() {
     </div>
   );
 
-  // THE ULTIMATE iOS SAFARI FIX: Base64 Swap + Cache Busting
+// THE ULTIMATE MOBILE FIX: Cache-Busting Fetch + Base64 + Double Render + RAM Saver
   const captureAndDownload = async (elementId: string, filename: string) => {
     const element = document.getElementById(elementId);
     if (!element) return;
@@ -43,16 +43,18 @@ export default function MemoryPage() {
     if (btn) btn.innerText = "⏳";
 
     try {
-      // 1. SAFARI BYPASS: Convert all Supabase images to trusted local Base64 strings first
+      // 1. MOBILE CORS BYPASS: Force fetch a fresh, un-cached image and convert to Base64
       const images = Array.from(element.getElementsByTagName('img'));
       const originalSrcs = images.map(img => img.src);
 
       await Promise.all(images.map(async (img) => {
         if (img.src.startsWith('http')) {
           try {
-            const res = await fetch(img.src, { mode: 'cors', cache: 'no-cache' });
+            // The ?cb= parameter forces the phone to completely ignore its locked disk cache
+            const cacheBustUrl = `${img.src}${img.src.includes('?') ? '&' : '?'}cb=${Date.now()}`;
+            const res = await fetch(cacheBustUrl, { mode: 'cors', cache: 'no-store' });
             const blob = await res.blob();
-            return new Promise((resolve) => {
+            await new Promise((resolve) => {
               const reader = new FileReader();
               reader.onloadend = () => {
                 img.src = reader.result as string;
@@ -61,30 +63,35 @@ export default function MemoryPage() {
               reader.readAsDataURL(blob);
             });
           } catch (err) {
-            console.warn("Could not pre-fetch image for iOS bypass", err);
+            console.warn("Mobile pre-fetch failed", err);
           }
         }
       }));
 
-      // 2. Take the screenshot (Safari will now trust the Base64 images!)
-      const dataUrl = await toPng(element, {
+      const config = {
           cacheBust: true, 
-          pixelRatio: 3, 
-          filter: (node) => {
+          pixelRatio: 2, // Dropped from 3 to 2 to prevent mobile RAM crashes!
+          filter: (node: any) => {
               const el = node as HTMLElement;
               if (el?.hasAttribute && el.hasAttribute('data-ignore')) {
                   return false;
               }
               return true;
           }
-      });
+      };
 
-      // 3. Put the original Supabase URLs back so the live site stays fast
+      // 2. THE WEBKIT HACK: iOS/Mobile Chrome needs a "warm-up" render before the real one
+      await toPng(element, config).catch(() => {});
+      
+      // 3. The actual final capture
+      const dataUrl = await toPng(element, config);
+
+      // 4. Restore original image URLs to keep the live site fast
       images.forEach((img, index) => {
         img.src = originalSrcs[index];
       });
 
-      // 4. Download!
+      // 5. Trigger the file download
       const link = document.createElement("a");
       link.href = dataUrl;
       link.download = filename;
