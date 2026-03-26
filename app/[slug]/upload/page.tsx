@@ -187,7 +187,7 @@ export default function UploadPage() {
               disabled={uploading || !file} 
               className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-xl mt-4 ${uploading || !file ? "bg-gray-700 text-gray-500" : "bg-gradient-to-r from-purple-600 to-blue-600 text-white hover:scale-[1.02] active:scale-95"}`}
             >
-              {uploading ? "⏳ Uploading..." : "Send to Projector"}
+              {uploading ? "⏳ Uploading..." : "Upload to Memory Gallery"}
             </button>
           </form>
         )}

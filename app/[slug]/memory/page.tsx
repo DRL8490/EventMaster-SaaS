@@ -6,7 +6,6 @@ import { supabase } from "../../../lib/supabaseClient";
 export default function MemoryPage() {
   const params = useParams();
   
-  // Safely extract the slug
   const eventSlug = typeof params?.slug === 'string' ? params.slug : Array.isArray(params?.slug) ? params.slug[0] : "";
 
   const [eventId, setEventId] = useState<number | null>(null);
@@ -17,11 +16,29 @@ export default function MemoryPage() {
   const [raffleWinners, setRaffleWinners] = useState<any[]>([]);
   const [gameWinners, setGameWinners] = useState<any[]>([]);
   const [allGuests, setAllGuests] = useState<any[]>([]);
-  const [guestUploads, setGuestUploads] = useState<any[]>([]); // NEW: State for the Photo Drop gallery
+  const [guestUploads, setGuestUploads] = useState<any[]>([]); 
   
   const [loading, setLoading] = useState(true);
 
-  // 1. GET THE EVENT ID & NAME (Runs only once)
+  // THE NEW DOWNLOAD FUNCTION
+  const handleDownload = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename || 'party-memory.jpg';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error("Error downloading image:", error);
+      window.open(url, '_blank'); // Fallback: open in new tab if download fails
+    }
+  };
+
   useEffect(() => {
     if (!eventSlug) return;
 
@@ -46,16 +63,12 @@ export default function MemoryPage() {
     fetchEventId();
   }, [eventSlug]);
 
-  // 2. FETCH ALL MEMORIES FOR THIS SPECIFIC EVENT
   useEffect(() => {
     if (!eventId) return;
 
     const fetchMemories = async () => {
-      // Fetch Guests & Winners
       const { data: guests } = await supabase.from("guests").select("*").eq("event_id", eventId).order("id", { ascending: true });
       const { data: games } = await supabase.from("games").select("*").eq("event_id", eventId).order("id", { ascending: true });
-      
-      // NEW: Fetch the Native SaaS Uploads!
       const { data: uploads } = await supabase.from("gallery_photos").select("*").eq("event_id", eventId).order("created_at", { ascending: false });
 
       if (guests) {
@@ -76,7 +89,6 @@ export default function MemoryPage() {
     
     fetchMemories();
 
-    // OPTIONAL SAAS UPGRADE: Real-time listener so the gallery updates the second a guest uploads a photo!
     const channel = supabase.channel(`public:gallery_photos:event_id=eq.${eventId}`)
       .on(
         'postgres_changes',
@@ -114,7 +126,6 @@ export default function MemoryPage() {
     <div className="min-h-[100dvh] bg-gray-900 font-sans text-white p-4 md:p-8 pb-20 selection:bg-purple-500">
       <div className="max-w-6xl mx-auto space-y-16">
         
-        {/* HEADER */}
         <div className="text-center space-y-2 mt-6">
           <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 uppercase tracking-tighter drop-shadow-sm">
             {eventName}
@@ -122,7 +133,6 @@ export default function MemoryPage() {
           <p className="text-gray-400 font-bold tracking-widest uppercase text-xs md:text-sm">Official Memory Gallery</p>
         </div>
 
-        {/* SECTION 1: THE WINNERS */}
         <div className="space-y-6">
             <h2 className="text-2xl font-black text-yellow-400 uppercase tracking-widest border-b-2 border-yellow-500/30 pb-2">🏆 Wall of Fame</h2>
             {raffleWinners.length === 0 && gameWinners.length === 0 && (
@@ -150,7 +160,7 @@ export default function MemoryPage() {
             </div>
         </div>
 
-        {/* NEW SECTION 2: LIVE GUEST GALLERY (MASONRY GRID) */}
+        {/* THE LIVE GUEST GALLERY WITH DOWNLOAD BUTTONS */}
         <div className="space-y-6 pt-8">
             <div className="flex items-end justify-between border-b-2 border-purple-500/30 pb-2">
                 <h2 className="text-2xl font-black text-purple-400 uppercase tracking-widest">📸 Live Gallery</h2>
@@ -170,11 +180,21 @@ export default function MemoryPage() {
                         <div key={`photo-${photo.id}`} className="break-inside-avoid relative group rounded-2xl overflow-hidden shadow-lg border border-gray-700 bg-gray-800">
                             <img src={photo.photo_url} alt="Guest Upload" className="w-full h-auto object-cover transform group-hover:scale-105 transition-transform duration-500" loading="lazy" />
                             
-                            {/* Overlay with Uploader Name */}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 translate-y-2 group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                                <p className="text-white font-black text-xs uppercase tracking-widest truncate drop-shadow-md">
-                                    {photo.uploader_name}
+                            {/* NEW: Overlay with Name AND Download Button */}
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 translate-y-2 group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transition-all duration-300 flex justify-between items-end">
+                                <p className="text-white font-black text-xs uppercase tracking-widest truncate drop-shadow-md pr-2 pb-1">
+                                    {photo.uploader_name || "Guest"}
                                 </p>
+                                <button 
+                                    onClick={(e) => { 
+                                        e.preventDefault(); 
+                                        handleDownload(photo.photo_url, `PartyMaster-${photo.id}.jpg`); 
+                                    }}
+                                    className="bg-white/20 hover:bg-white/40 text-white p-2 md:p-3 rounded-full backdrop-blur-sm transition-colors"
+                                    title="Download Photo"
+                                >
+                                    ⬇️
+                                </button>
                             </div>
                         </div>
                     ))}
@@ -182,7 +202,6 @@ export default function MemoryPage() {
             )}
         </div>
 
-        {/* SECTION 3: THE BUBBLE SQUAD */}
         <div className="space-y-6 pt-8">
             <h2 className="text-2xl font-black text-blue-400 uppercase tracking-widest border-b-2 border-blue-500/30 pb-2">🫧 The Party Squad</h2>
             <div className="flex flex-wrap justify-center gap-5 md:gap-8 pt-4">
