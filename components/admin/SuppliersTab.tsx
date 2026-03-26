@@ -3,8 +3,8 @@
 import React, { useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
-export default function SuppliersTab({ suppliers, executeDbAction }: { suppliers: any[], executeDbAction: any }) {
-  // These states used to clutter the main page. Now they live ONLY here!
+// SAAS FIX: Added eventId to the props
+export default function SuppliersTab({ eventId, suppliers, executeDbAction }: { eventId: number | null, suppliers: any[], executeDbAction: any }) {
   const [newSupplier, setNewSupplier] = useState({ supply_name: "", description: "", supplier_name: "", contacts: "", assigned_to: "", full_amount: "", due_date: "" });
   const [activePaymentModal, setActivePaymentModal] = useState<number | null>(null);
   const [newPayment, setNewPayment] = useState({ amount: "", due_date: "", date_paid: "", payment_via: "Cash" });
@@ -13,12 +13,15 @@ export default function SuppliersTab({ suppliers, executeDbAction }: { suppliers
 
   const handleAddSupplier = async (e: React.FormEvent) => {
       e.preventDefault();
-      await executeDbAction(supabase.from("suppliers").insert([{ ...newSupplier, due_date: newSupplier.due_date || null }]));
+      // SAAS LOCK: Ensure the new supplier is tagged with the current eventId
+      await executeDbAction(supabase.from("suppliers").insert([{ event_id: eventId, ...newSupplier, due_date: newSupplier.due_date || null }]));
       setNewSupplier({ supply_name: "", description: "", supplier_name: "", contacts: "", assigned_to: "", full_amount: "", due_date: "" });
   };
 
   const handleAddPayment = async (e: React.FormEvent) => {
       e.preventDefault();
+      // Supplier Payments belong to a supplier, so they don't explicitly need an event_id column,
+      // but ensuring the supplier_id belongs to the event is crucial. 
       await executeDbAction(supabase.from("supplier_payments").insert([{ 
           supplier_id: activePaymentModal, amount: newPayment.amount, due_date: newPayment.due_date || null, date_paid: newPayment.date_paid || null, payment_via: newPayment.payment_via 
       }]));
@@ -32,7 +35,8 @@ export default function SuppliersTab({ suppliers, executeDbAction }: { suppliers
   };
 
   const handleSaveSupplier = async (id: number) => {
-      await executeDbAction(supabase.from("suppliers").update({ description: editSupplierData.description, contacts: editSupplierData.contacts, due_date: editSupplierData.due_date || null }).eq("id", id));
+      // SAAS LOCK: Double check the eventId before updating!
+      await executeDbAction(supabase.from("suppliers").update({ description: editSupplierData.description, contacts: editSupplierData.contacts, due_date: editSupplierData.due_date || null }).eq("id", id).eq("event_id", eventId));
       setEditingSupplierId(null);
   };
 
@@ -149,7 +153,8 @@ export default function SuppliersTab({ suppliers, executeDbAction }: { suppliers
                             )}
                         </div>
                     </div>
-                    <div className="mt-4 pt-4 border-t border-gray-100 text-right"><button onClick={() => window.confirm(`Delete completely?`) && executeDbAction(supabase.from("suppliers").delete().eq("id", sup.id))} className="text-red-500 hover:bg-red-50 text-xs font-bold px-3 py-1 rounded-lg transition-all">🗑️ Delete Supplier</button></div>
+                    {/* SAAS LOCK: Double check the eventId before deleting! */}
+                    <div className="mt-4 pt-4 border-t border-gray-100 text-right"><button onClick={() => window.confirm(`Delete completely?`) && executeDbAction(supabase.from("suppliers").delete().eq("id", sup.id).eq("event_id", eventId))} className="text-red-500 hover:bg-red-50 text-xs font-bold px-3 py-1 rounded-lg transition-all">🗑️ Delete Supplier</button></div>
                 </div>
             )})}
         </div>

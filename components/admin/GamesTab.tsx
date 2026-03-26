@@ -2,13 +2,15 @@
 import React, { useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
-export default function GamesTab({ games, executeDbAction }: any) {
+// SAAS FIX: Added eventId to the props
+export default function GamesTab({ eventId, games, executeDbAction }: any) {
   const [newGameName, setNewGameName] = useState("");
   const [newNumWinners, setNewNumWinners] = useState<number | "">(1);
 
   const handleAddGame = async (e: React.FormEvent) => {
       e.preventDefault();
-      await executeDbAction(supabase.from("games").insert([{ name: newGameName, num_winners: newNumWinners }]));
+      // SAAS LOCK: Insert the new game with the correct eventId
+      await executeDbAction(supabase.from("games").insert([{ event_id: eventId, name: newGameName, num_winners: newNumWinners }]));
       setNewGameName("");
       setNewNumWinners(1);
   };
@@ -54,7 +56,8 @@ export default function GamesTab({ games, executeDbAction }: any) {
                         <td className="p-4 font-black text-gray-800 text-lg">{g.name}</td>
                         <td className="p-4 text-center font-black text-blue-600 text-xl bg-blue-50/50">{g.num_winners}</td>
                         <td className="p-4 text-center">
-                            <button onClick={() => window.confirm("Delete this game?") && executeDbAction(supabase.from("games").delete().eq("id", g.id))} className="text-red-600 font-bold text-xs bg-red-50 hover:bg-red-500 hover:text-white px-3 py-2 rounded-lg transition-all">🗑️ Delete</button>
+                            {/* SAAS LOCK: Double check the eventId before deleting! */}
+                            <button onClick={() => window.confirm("Delete this game?") && executeDbAction(supabase.from("games").delete().eq("id", g.id).eq("event_id", eventId))} className="text-red-600 font-bold text-xs bg-red-50 hover:bg-red-500 hover:text-white px-3 py-2 rounded-lg transition-all">🗑️ Delete</button>
                         </td>
                     </tr>
                 ))}

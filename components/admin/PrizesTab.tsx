@@ -2,12 +2,12 @@
 import React, { useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
-export default function PrizesTab({ prizes, setPrizes, executeDbAction, uniqueReferrals }: any) {
+// SAAS FIX: Added eventId to the props
+export default function PrizesTab({ eventId, prizes, setPrizes, executeDbAction, uniqueReferrals }: any) {
   const [newPrizeName, setNewPrizeName] = useState("");
   const [newPrizeCategory, setNewPrizeCategory] = useState("All");
   const [draggedPrizeId, setDraggedPrizeId] = useState<number | null>(null);
 
-  // FIXED: Base categories are clean, and we specifically filter out "Host" from referrals!
   const baseCategories = ["Adults", "Teens", "Kids"];
   const actualReferrals = uniqueReferrals?.filter((r: string) => r !== "All" && r.toLowerCase() !== "host") || [];
   
@@ -38,7 +38,8 @@ export default function PrizesTab({ prizes, setPrizes, executeDbAction, uniqueRe
       setPrizes(updatedPrizes);
       setDraggedPrizeId(null);
       for (const p of updatedPrizes) { 
-          await supabase.from("prizes").update({ draw_order: p.draw_order }).eq("id", p.id); 
+          // SAAS LOCK: Ensure we only update the draw order for this event's prizes
+          await supabase.from("prizes").update({ draw_order: p.draw_order }).eq("id", p.id).eq("event_id", eventId); 
       }
   };
 
@@ -48,7 +49,8 @@ export default function PrizesTab({ prizes, setPrizes, executeDbAction, uniqueRe
         
         <form onSubmit={(e) => { 
             e.preventDefault(); 
-            executeDbAction(supabase.from("prizes").insert([{ name: newPrizeName, status: "unclaimed", category: newPrizeCategory, draw_order: prizes.length + 1 }])); 
+            // SAAS LOCK: Insert the new prize with the correct eventId
+            executeDbAction(supabase.from("prizes").insert([{ event_id: eventId, name: newPrizeName, status: "unclaimed", category: newPrizeCategory, draw_order: prizes.length + 1 }])); 
             setNewPrizeName(""); 
         }} className="flex gap-4 mb-8 bg-yellow-50 p-6 rounded-2xl border border-yellow-200 flex-wrap items-center">
             <div className="flex flex-col flex-grow">
@@ -111,8 +113,9 @@ export default function PrizesTab({ prizes, setPrizes, executeDbAction, uniqueRe
                             <span className={`px-3 py-1 rounded-full text-xs font-black uppercase border ${p.status === 'claimed' ? 'bg-red-100 text-red-700 border-red-200' : 'bg-green-100 text-green-700 border-green-200'}`}>{p.status}</span>
                         </td>
                         <td className="p-4 text-center space-x-2">
-                            {p.status === 'claimed' && <button onClick={() => executeDbAction(supabase.from("prizes").update({ status: "unclaimed" }).eq("id", p.id))} className="text-blue-600 font-bold text-xs bg-blue-50 hover:bg-blue-500 hover:text-white px-3 py-2 rounded-lg transition-all">🔄 Reset</button>}
-                            <button onClick={() => window.confirm("Delete?") && executeDbAction(supabase.from("prizes").delete().eq("id", p.id))} className="text-red-600 font-bold text-xs bg-red-50 hover:bg-red-500 hover:text-white px-3 py-2 rounded-lg transition-all">🗑️ Delete</button>
+                            {/* SAAS LOCK: Ensure we only reset or delete if the eventId matches */}
+                            {p.status === 'claimed' && <button onClick={() => executeDbAction(supabase.from("prizes").update({ status: "unclaimed" }).eq("id", p.id).eq("event_id", eventId))} className="text-blue-600 font-bold text-xs bg-blue-50 hover:bg-blue-500 hover:text-white px-3 py-2 rounded-lg transition-all">🔄 Reset</button>}
+                            <button onClick={() => window.confirm("Delete?") && executeDbAction(supabase.from("prizes").delete().eq("id", p.id).eq("event_id", eventId))} className="text-red-600 font-bold text-xs bg-red-50 hover:bg-red-500 hover:text-white px-3 py-2 rounded-lg transition-all">🗑️ Delete</button>
                         </td>
                     </tr>
                 ))}
