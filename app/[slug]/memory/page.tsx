@@ -5,7 +5,9 @@ import { supabase } from "../../../lib/supabaseClient";
 
 export default function MemoryPage() {
   const params = useParams();
-  const eventSlug = params.slug;
+  
+  // SAAS FIX 1: Explicitly tell TypeScript this is a string to prevent build errors
+  const eventSlug = params?.slug as string;
 
   const [eventId, setEventId] = useState<number | null>(null);
   const [eventName, setEventName] = useState("");
@@ -18,14 +20,18 @@ export default function MemoryPage() {
 
   // 1. GET THE EVENT ID & NAME (Runs only once)
   useEffect(() => {
+    // SAAS FIX 2: The Race Condition Bouncer! 
+    // Wait until Next.js has successfully extracted the slug from the URL before querying Supabase.
+    if (!eventSlug) return;
+
     const fetchEventId = async () => {
-      const { data: eventData } = await supabase
+      const { data: eventData, error } = await supabase
         .from("events")
         .select("id, name")
         .eq("slug", eventSlug)
         .single();
 
-      if (!eventData) {
+      if (error || !eventData) {
         setInvalidEvent(true);
         setLoading(false);
         return;
@@ -34,7 +40,7 @@ export default function MemoryPage() {
       setEventName(eventData.name);
     };
 
-    if (eventSlug) fetchEventId();
+    fetchEventId();
   }, [eventSlug]);
 
   // 2. FETCH MEMORIES FOR THIS SPECIFIC EVENT (Runs after we have the eventId)
@@ -42,7 +48,6 @@ export default function MemoryPage() {
     if (!eventId) return;
 
     const fetchMemories = async () => {
-      // SAAS QUERY: Strictly fetch guests and games for THIS event
       const { data: guests } = await supabase.from("guests").select("*").eq("event_id", eventId).order("id", { ascending: true });
       const { data: games } = await supabase.from("games").select("*").eq("event_id", eventId).order("id", { ascending: true });
 
@@ -78,7 +83,6 @@ export default function MemoryPage() {
         
         {/* HEADER */}
         <div className="text-center space-y-2 mt-6">
-          {/* DYNAMIC EVENT NAME */}
           <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 uppercase tracking-tighter drop-shadow-sm">
             {eventName}
           </h1>
