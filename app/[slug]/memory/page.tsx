@@ -20,23 +20,33 @@ export default function MemoryPage() {
   
   const [loading, setLoading] = useState(true);
 
-  // THE ULTIMATE SCREENSHOT FIX: html-to-image with Cache Busting
+  // FESTIVE WATERMARK COMPONENTS
+  const LargeWatermark = () => (
+    <div className="absolute top-2 right-2 bg-gradient-to-r from-pink-500 via-purple-500 to-yellow-400 text-white text-[8px] md:text-[10px] font-black px-2.5 py-1 rounded-full shadow-lg transform rotate-3 border-2 border-white z-0 pointer-events-none drop-shadow-md tracking-widest uppercase">
+      🎉 Nyla's 5th Birthday 🎈
+    </div>
+  );
+
+  const TinyWatermark = () => (
+    <div className="absolute -top-1 -right-3 bg-gradient-to-r from-pink-500 to-yellow-400 text-white text-[5px] md:text-[6px] font-black px-1.5 py-0.5 rounded-full shadow-sm transform rotate-6 border border-white z-0 pointer-events-none whitespace-nowrap tracking-wider">
+      🎉 NYLA'S 5TH
+    </div>
+  );
+
+  // THE ULTIMATE SCREENSHOT FIX (Now applied to EVERYTHING!)
   const captureAndDownload = async (elementId: string, filename: string) => {
     const element = document.getElementById(elementId);
     if (!element) return;
 
-    // Show a quick loading state
     const btn = element.querySelector('button');
     const oldIcon = btn?.innerText;
     if (btn) btn.innerText = "⏳";
 
     try {
-      // html-to-image handles modern CSS and Supabase CORS natively
       const dataUrl = await toPng(element, {
-          cacheBust: true, // THIS IS THE MAGIC BULLET! Bypasses the browser cache block.
-          pixelRatio: 3, // Keeps the downloaded image super crisp
+          cacheBust: true, 
+          pixelRatio: 3, 
           filter: (node) => {
-              // Hide the download buttons from the final screenshot
               const el = node as HTMLElement;
               if (el?.hasAttribute && el.hasAttribute('data-ignore')) {
                   return false;
@@ -45,7 +55,6 @@ export default function MemoryPage() {
           }
       });
 
-      // Trigger the download
       const link = document.createElement("a");
       link.href = dataUrl;
       link.download = filename;
@@ -57,26 +66,7 @@ export default function MemoryPage() {
       console.error("Error capturing image:", error);
       alert("Oops! Couldn't capture the styled image. Try again!");
     } finally {
-      // Restore the button icon
       if (btn && oldIcon) btn.innerText = oldIcon;
-    }
-  };
-
-  // Keep for raw gallery uploads
-  const handleRawDownload = async (url: string, filename: string) => {
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (error) {
-      window.open(url, '_blank'); 
     }
   };
 
@@ -145,7 +135,7 @@ export default function MemoryPage() {
         
         {/* HEADER */}
         <div className="text-center space-y-2 mt-6">
-          <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 uppercase tracking-tighter drop-shadow-sm">
+          <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-yellow-400 uppercase tracking-tighter drop-shadow-sm">
             {eventName}
           </h1>
           <p className="text-gray-400 font-bold tracking-widest uppercase text-xs md:text-sm">Official Memory Gallery</p>
@@ -165,9 +155,12 @@ export default function MemoryPage() {
                         <div className="relative overflow-hidden rounded-xl border-2 border-gray-100 bg-white">
                             <img src={w.proof_url} alt={w.nickname} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
                             
-                            <div data-ignore="true" className="absolute top-2 right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                            <LargeWatermark />
+
+                            {/* Moved Button to Top-Left */}
+                            <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                                 <button 
-                                    onClick={() => captureAndDownload(`raffle-card-${w.id}`, `${w.nickname}-Winner.png`)}
+                                    onClick={() => captureAndDownload(`raffle-card-${w.id}`, `Nylas5th-${w.nickname}-Winner.png`)}
                                     className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm active:scale-90 shadow-lg text-xs md:text-sm"
                                     title="Download Card"
                                 >
@@ -177,7 +170,7 @@ export default function MemoryPage() {
                         </div>
                         <div className="pt-3 pb-1 text-center bg-white">
                             <p className="text-gray-900 font-black uppercase text-sm md:text-base leading-tight truncate">{w.nickname}</p>
-                            <p className="text-blue-600 font-bold text-[10px] md:text-xs uppercase mt-0.5 truncate">{w.prize_won}</p>
+                            <p className="text-pink-500 font-bold text-[10px] md:text-xs uppercase mt-0.5 truncate">{w.prize_won}</p>
                         </div>
                     </div>
                 ))}
@@ -187,9 +180,13 @@ export default function MemoryPage() {
                     <div id={`game-card-${g.id}`} key={`game-${g.id}`} className="bg-white p-2 md:p-3 rounded-2xl shadow-xl transform -rotate-2 hover:rotate-0 transition-all group relative">
                         <div className="relative overflow-hidden rounded-xl border-2 border-gray-100 bg-white">
                             <img src={g.proof_url} alt={g.name} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
-                            <div data-ignore="true" className="absolute top-2 right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                            
+                            <LargeWatermark />
+
+                            {/* Moved Button to Top-Left */}
+                            <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                                 <button 
-                                    onClick={() => captureAndDownload(`game-card-${g.id}`, `${g.name}-Winner.png`)}
+                                    onClick={() => captureAndDownload(`game-card-${g.id}`, `Nylas5th-${g.name}-Winner.png`)}
                                     className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm active:scale-90 shadow-lg text-xs md:text-sm"
                                     title="Download Card"
                                 >
@@ -199,18 +196,18 @@ export default function MemoryPage() {
                         </div>
                         <div className="pt-3 pb-1 text-center bg-white">
                             <p className="text-gray-900 font-black uppercase text-sm md:text-base leading-tight truncate px-1">{g.name}</p>
-                            <p className="text-green-600 font-bold text-[10px] md:text-xs uppercase mt-0.5">Game Winner</p>
+                            <p className="text-pink-500 font-bold text-[10px] md:text-xs uppercase mt-0.5">Game Winner</p>
                         </div>
                     </div>
                 ))}
             </div>
         </div>
 
-        {/* SECTION 2: LIVE GUEST GALLERY (RAW UPLOADS) */}
+        {/* SECTION 2: LIVE GUEST GALLERY (NOW SCREENSHOT CAPTURED!) */}
         <div className="space-y-6 pt-8">
-            <div className="flex items-end justify-between border-b-2 border-purple-500/30 pb-2">
-                <h2 className="text-2xl font-black text-purple-400 uppercase tracking-widest">📸 Live Gallery</h2>
-                <a href={`/${eventSlug}/upload`} className="text-[10px] md:text-xs font-black bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg uppercase tracking-widest transition-colors mb-1">
+            <div className="flex items-end justify-between border-b-2 border-pink-500/30 pb-2">
+                <h2 className="text-2xl font-black text-pink-400 uppercase tracking-widest">📸 Live Gallery</h2>
+                <a href={`/${eventSlug}/upload`} className="text-[10px] md:text-xs font-black bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-400 hover:to-purple-400 text-white px-3 py-1.5 rounded-lg uppercase tracking-widest transition-colors mb-1 shadow-md border border-white/20">
                     + Add Photo
                 </a>
             </div>
@@ -223,12 +220,15 @@ export default function MemoryPage() {
             ) : (
                 <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4 pt-4">
                     {guestUploads.map((photo) => (
-                        <div key={`photo-${photo.id}`} className="break-inside-avoid relative group rounded-2xl overflow-hidden shadow-lg border border-gray-700 bg-gray-800">
+                        <div id={`live-card-${photo.id}`} key={`photo-${photo.id}`} className="break-inside-avoid relative group rounded-2xl overflow-hidden shadow-lg border-2 border-pink-500/30 bg-gray-800">
                             <img src={photo.photo_url} alt="Guest Upload" className="w-full h-auto object-cover block" loading="lazy" crossOrigin="anonymous" />
                             
-                            <div className="absolute top-2 right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
+                            <LargeWatermark />
+
+                            {/* Moved Button to Top-Left */}
+                            <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
                                 <button 
-                                    onClick={() => handleRawDownload(photo.photo_url, `PartyMaster-${photo.id}.jpg`)}
+                                    onClick={() => captureAndDownload(`live-card-${photo.id}`, `Nylas5th-Memory-${photo.id}.png`)}
                                     className="bg-black/50 hover:bg-black/70 text-white p-2 md:p-2.5 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-xs md:text-sm"
                                     title="Download Photo"
                                 >
@@ -257,9 +257,12 @@ export default function MemoryPage() {
                             <img src={g.photo_url} alt={g.nickname} className="w-full h-full object-cover" crossOrigin="anonymous" />
                         </div>
                         
-                        <div data-ignore="true" className="absolute -top-1 right-0 md:-right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
+                        <TinyWatermark />
+
+                        {/* Moved Button to Top-Left */}
+                        <div data-ignore="true" className="absolute -top-1 left-0 md:-left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
                             <button 
-                                onClick={() => captureAndDownload(`bubble-card-${g.id}`, `${g.nickname}-Avatar.png`)}
+                                onClick={() => captureAndDownload(`bubble-card-${g.id}`, `Nylas5th-${g.nickname}-Avatar.png`)}
                                 className="bg-black/60 hover:bg-black/80 text-white p-1.5 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-[10px]"
                                 title="Download Avatar"
                             >
