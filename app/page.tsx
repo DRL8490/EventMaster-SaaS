@@ -18,7 +18,7 @@ export default function SuperAdminDashboard() {
   const [newName, setNewName] = useState("");
   const [newSlug, setNewSlug] = useState("");
   const [newPasscode, setNewPasscode] = useState("");
-  const [newClientEmail, setNewClientEmail] = useState(""); // NEW: Client Email State
+  const [newClientEmail, setNewClientEmail] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState("");
 
@@ -62,7 +62,6 @@ export default function SuperAdminDashboard() {
     setCreateError("");
 
     try {
-      // NEW: Added client_email to the insert payload
       const { data: newEvent, error: eventError } = await supabase
         .from("events")
         .insert([{ name: newName, slug: newSlug, passcode: newPasscode, client_email: newClientEmail || null }])
@@ -77,7 +76,7 @@ export default function SuperAdminDashboard() {
       const { error: configError } = await supabase.from("raffle_config").insert([{ event_id: newEvent.id }]);
       if (configError) throw configError;
 
-// TRIGGER EMAIL AUTOMATION
+      // SAAS AUTOMATION: Trigger Email API Route perfectly nested inside the try block
       const emailResponse = await fetch('/api/send-event-email', {
         method: 'POST',
         headers: {
@@ -94,6 +93,19 @@ export default function SuperAdminDashboard() {
       if (!emailResponse.ok) {
         console.error("Database succeeded, but Email failed to send.");
       }
+
+      setNewName("");
+      setNewSlug("");
+      setNewPasscode("");
+      setNewClientEmail("");
+      fetchEvents();
+      
+    } catch (error: any) {
+      setCreateError(error.message);
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   const handleDeleteEvent = async (eventId: number, eventName: string) => {
     if (!window.confirm(`🚨 WARNING: Are you sure you want to completely delete "${eventName}"?`)) return;
@@ -255,7 +267,6 @@ export default function SuperAdminDashboard() {
 
                     <h3 className="text-xl font-black text-gray-900 mb-1 pr-12 truncate">{event.name}</h3>
                     
-                    {/* NEW: Full Vercel URL Display */}
                     <a href={`https://event-master-saas.vercel.app/${event.slug}`} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 font-bold text-xs mb-4 block truncate transition-colors">
                       https://event-master-saas.vercel.app/{event.slug}
                     </a>
