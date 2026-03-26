@@ -1,35 +1,76 @@
 "use client";
 import { useState, useEffect } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { useParams } from "next/navigation";
+import { supabase } from "../../../lib/supabaseClient";
 
 export default function MemoryPage() {
+  const params = useParams();
+  const eventSlug = params.slug;
+
+  const [eventId, setEventId] = useState<number | null>(null);
+  const [eventName, setEventName] = useState("");
+  const [invalidEvent, setInvalidEvent] = useState(false);
+
   const [raffleWinners, setRaffleWinners] = useState<any[]>([]);
   const [gameWinners, setGameWinners] = useState<any[]>([]);
   const [allGuests, setAllGuests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // 1. GET THE EVENT ID & NAME (Runs only once)
   useEffect(() => {
+    const fetchEventId = async () => {
+      const { data: eventData } = await supabase
+        .from("events")
+        .select("id, name")
+        .eq("slug", eventSlug)
+        .single();
+
+      if (!eventData) {
+        setInvalidEvent(true);
+        setLoading(false);
+        return;
+      }
+      setEventId(eventData.id);
+      setEventName(eventData.name);
+    };
+
+    if (eventSlug) fetchEventId();
+  }, [eventSlug]);
+
+  // 2. FETCH MEMORIES FOR THIS SPECIFIC EVENT (Runs after we have the eventId)
+  useEffect(() => {
+    if (!eventId) return;
+
     const fetchMemories = async () => {
-      const { data: guests } = await supabase.from("guests").select("*").order("id", { ascending: true });
-      const { data: games } = await supabase.from("games").select("*").order("id", { ascending: true });
+      // SAAS QUERY: Strictly fetch guests and games for THIS event
+      const { data: guests } = await supabase.from("guests").select("*").eq("event_id", eventId).order("id", { ascending: true });
+      const { data: games } = await supabase.from("games").select("*").eq("event_id", eventId).order("id", { ascending: true });
 
       if (guests) {
         setAllGuests(guests);
-        // Only grab raffle winners who have had their photo uploaded!
         setRaffleWinners(guests.filter((g: any) => g.status === "won" && g.proof_url));
       }
 
       if (games) {
-        // Grab completed games that have a photo proof
         setGameWinners(games.filter((g: any) => g.proof_url));
       }
       setLoading(false);
     };
     
     fetchMemories();
-  }, []);
+  }, [eventId]);
 
   if (loading) return <div className="min-h-[100dvh] flex items-center justify-center bg-gray-900 text-blue-400 font-black animate-pulse uppercase tracking-widest">Loading Memories...</div>;
+
+  if (invalidEvent) return (
+    <div className="fixed inset-0 w-full flex flex-col items-center justify-center p-6 bg-gray-900 text-center">
+      <div className="bg-black/60 backdrop-blur-lg p-8 rounded-[2rem] border border-red-500/50 shadow-2xl">
+        <h1 className="text-5xl mb-4">⚠️</h1>
+        <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Event Not Found</h2>
+        <p className="text-gray-400 mt-2 font-bold text-sm">Check the URL and try again.</p>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-[100dvh] bg-gray-900 font-sans text-white p-4 md:p-8 pb-20 selection:bg-purple-500">
@@ -37,8 +78,9 @@ export default function MemoryPage() {
         
         {/* HEADER */}
         <div className="text-center space-y-2 mt-6">
+          {/* DYNAMIC EVENT NAME */}
           <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 uppercase tracking-tighter drop-shadow-sm">
-            Nyla&apos;s 5th Birthday
+            {eventName}
           </h1>
           <p className="text-gray-400 font-bold tracking-widest uppercase text-xs md:text-sm">Official Memory Gallery</p>
         </div>

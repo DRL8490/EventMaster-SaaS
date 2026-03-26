@@ -1,11 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { supabase } from "../../lib/supabaseClient"; 
+import { useParams } from "next/navigation";
+import { supabase } from "../../../lib/supabaseClient"; 
 
 const capitalizeWords = (str: string) => str.replace(/\b\w/g, (c) => c.toUpperCase());
 
 export default function GuestPage() {
+  const params = useParams();
+  const eventSlug = params.slug; 
+  const [eventId, setEventId] = useState<number | null>(null);
+  const [invalidEvent, setInvalidEvent] = useState(false);
+
   const [fullName, setFullName] = useState("");
   const [nickname, setNickname] = useState("");
   const [category, setCategory] = useState("Adults"); 
@@ -25,9 +31,32 @@ export default function GuestPage() {
   const [bgImageUrl, setBgImageUrl] = useState(""); 
   const [schedule, setSchedule] = useState<{ start: string | null; end: string | null }>({ start: null, end: null });
 
+  // 1. GET THE EVENT ID (Runs only once when the page loads)
   useEffect(() => {
-    const fetchData = async () => {
-      const { data: config } = await supabase.from("raffle_config").select("*").single();
+    const fetchEventId = async () => {
+      const { data: eventData } = await supabase
+        .from("events")
+        .select("id")
+        .eq("slug", eventSlug)
+        .single();
+
+      if (!eventData) {
+        setInvalidEvent(true);
+        setLoadingConfig(false);
+        return;
+      }
+      setEventId(eventData.id);
+    };
+
+    if (eventSlug) fetchEventId();
+  }, [eventSlug]);
+
+  // 2. FETCH DATA & SUBSCRIBE (Runs only AFTER we have the eventId)
+  useEffect(() => {
+    if (!eventId) return; // Wait until Phase 1 is done!
+
+    const fetchPartyData = async () => {
+      const { data: config } = await supabase.from("raffle_config").select("*").eq("event_id", eventId).single();
       if (config) {
         setIsRegistrationOpen(config.entries_open);
         setBgImageUrl(config.portrait_url || "");
@@ -35,31 +64,36 @@ export default function GuestPage() {
       }
       
       const [rsvpRes, guestRes] = await Promise.all([
-        supabase.from("rsvps").select("*"),
-        supabase.from("guests").select("full_name")
+        supabase.from("rsvps").select("*").eq("event_id", eventId),
+        supabase.from("guests").select("full_name").eq("event_id", eventId)
       ]);
 
       if (rsvpRes.data && guestRes.data) {
-        // Space Normalizer applied to existing live guests
         const liveGuestNames = guestRes.data.map(g => g.full_name.toLowerCase().trim().replace(/\s+/g, ' '));
-        
         const availableRsvps = rsvpRes.data.filter(
           rsvp => !liveGuestNames.includes(rsvp.full_name.toLowerCase().trim().replace(/\s+/g, ' '))
         );
-        
         setRsvpList(availableRsvps);
       }
       setLoadingConfig(false);
     };
-    fetchData();
 
-    const subscription = supabase.channel("config_changes").on("postgres_changes", { event: "UPDATE", schema: "public", table: "raffle_config" }, (payload: any) => {
+    fetchPartyData();
+
+    // Secure WebSocket strictly for this event
+    const subscription = supabase.channel(`config_${eventId}`)
+      .on("postgres_changes", { 
+        event: "UPDATE", 
+        schema: "public", 
+        table: "raffle_config",
+        filter: `event_id=eq.${eventId}` 
+      }, (payload: any) => {
           setIsRegistrationOpen(payload.new.entries_open);
           setSchedule({ start: payload.new.start_time, end: payload.new.end_time });
-    }).subscribe();
+      }).subscribe();
 
     return () => { supabase.removeChannel(subscription); };
-  }, []);
+  }, [eventId]);
 
   const handleNameInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = capitalizeWords(e.target.value);
@@ -83,19 +117,20 @@ export default function GuestPage() {
     setIsSubmitting(true);
     setErrorMessage("");
 
+    if (!eventId) return; 
+
     if (!photo) { 
       setErrorMessage("Please take a selfie first! 📸"); 
       setIsSubmitting(false); 
       return; 
     }
 
-    // THE FIX: Normalize spaces (e.g. "John  Doe" becomes "John Doe")
     const cleanFullName = fullName.trim().replace(/\s+/g, ' ');
 
-    // THE FIX: Use .limit(1) so it never crashes if there are already multiple duplicates in the DB!
-    const { data: existingGuests, error: searchError } = await supabase
+    const { data: existingGuests } = await supabase
       .from("guests")
       .select("id")
+      .eq("event_id", eventId) 
       .ilike("full_name", cleanFullName)
       .limit(1);
 
@@ -117,7 +152,7 @@ export default function GuestPage() {
       const guestStatus = category === "Host" ? "ineligible" : "eligible";
 
       const { error: insertError } = await supabase.from("guests").insert([
-        { full_name: cleanFullName, nickname: nickname.trim(), category: category, photo_url: photoUrl, status: guestStatus },
+        { event_id: eventId, full_name: cleanFullName, nickname: nickname.trim(), category: category, photo_url: photoUrl, status: guestStatus },
       ]);
       
       if (insertError) throw insertError;
@@ -133,6 +168,16 @@ export default function GuestPage() {
   };
 
   if (loadingConfig) return <div className="fixed inset-0 w-full flex items-center justify-center bg-gray-50"><p className="font-black text-blue-600 animate-pulse uppercase tracking-widest text-xl">Loading...</p></div>;
+
+  if (invalidEvent) return (
+    <div className="fixed inset-0 w-full flex flex-col items-center justify-center p-6 bg-gray-900 text-center">
+      <div className="bg-black/60 backdrop-blur-lg p-8 rounded-[2rem] border border-red-500/50 shadow-2xl">
+        <h1 className="text-5xl mb-4">⚠️</h1>
+        <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Event Not Found</h2>
+        <p className="text-gray-400 mt-2 font-bold text-sm">Check the URL and try again.</p>
+      </div>
+    </div>
+  );
 
   if (!isSuccess && (!isRegistrationOpen || (schedule.start && new Date() < new Date(schedule.start)) || (schedule.end && new Date() > new Date(schedule.end)))) {
     return (
@@ -164,8 +209,7 @@ export default function GuestPage() {
       ) : (
         <form onSubmit={handleSubmit} className="flex-1 min-h-0 w-full flex flex-col justify-between px-4 py-6" style={{ backgroundImage: bgImageUrl ? `url(${bgImageUrl})` : 'none', backgroundSize: "cover", backgroundPosition: "center" }}>
           <div className="text-center shrink-0 mb-4 pt-4">
-            <h1 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">Nyla&apos;s 5th Birthday</h1>
-            <p className="text-green-300 font-black mt-2 uppercase tracking-widest text-xs drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">Live Door Registration</p>
+            <h1 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">Live Door Registration</h1>
           </div>
           
           {errorMessage && <div className="bg-red-50 border-2 border-red-300 text-red-600 p-3 rounded-xl font-black text-center animate-bounce shadow-lg text-xs shrink-0 mb-2">{errorMessage}</div>}

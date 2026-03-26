@@ -2,13 +2,12 @@
 import React, { useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
-export default function RsvpsTab({ rsvps, fetchData, executeDbAction, uniqueReferrals }: any) {
+export default function RsvpsTab({ eventId, rsvps, fetchData, executeDbAction, uniqueReferrals }: any) {
   const [rsvpFilter, setRsvpFilter] = useState("All");
   const [rsvpReferralFilter, setRsvpReferralFilter] = useState("All");
   const [editingRsvpId, setEditingRsvpId] = useState<number | null>(null);
   const [editRsvpData, setEditRsvpData] = useState({ full_name: "", nickname: "", category: "Adults", referral: "" });
   
-  // FIXED: Removed Supplier
   const filterCategories = ["All", "Adults", "Teens", "Kids"];
 
   const handleEditRsvpClick = (rsvp: any) => {
@@ -17,7 +16,8 @@ export default function RsvpsTab({ rsvps, fetchData, executeDbAction, uniqueRefe
   };
 
   const handleSaveRsvp = async (id: number) => {
-      await executeDbAction(supabase.from("rsvps").update(editRsvpData).eq("id", id));
+      // SAAS LOCK: Ensure we only update if the eventId matches!
+      await executeDbAction(supabase.from("rsvps").update(editRsvpData).eq("id", id).eq("event_id", eventId));
       setEditingRsvpId(null);
   };
 
@@ -86,7 +86,6 @@ export default function RsvpsTab({ rsvps, fetchData, executeDbAction, uniqueRefe
                                         <input type="text" value={editRsvpData.nickname} onChange={e => setEditRsvpData({...editRsvpData, nickname: e.target.value})} className="w-full p-2 border-2 border-blue-300 rounded-lg text-sm font-bold text-blue-600" placeholder="Nickname" />
                                     </td>
                                     <td className="p-4 text-center">
-                                        {/* FIXED: Removed Supplier */}
                                         <select value={editRsvpData.category} onChange={e => setEditRsvpData({...editRsvpData, category: e.target.value})} className="p-2 border-2 border-blue-300 rounded-lg text-xs font-black uppercase">
                                             <option value="Adults">Adults</option><option value="Teens">Teens</option><option value="Kids">Kids</option>
                                         </select>
@@ -106,7 +105,9 @@ export default function RsvpsTab({ rsvps, fetchData, executeDbAction, uniqueRefe
                                     <td className="p-4"><span className="font-bold text-gray-600 bg-purple-50 px-3 py-1 rounded-lg border border-purple-100">{r.referral || "None"}</span></td>
                                     <td className="p-4 text-center space-x-2">
                                         <button onClick={() => handleEditRsvpClick(r)} className="text-blue-600 font-bold text-sm bg-blue-50 hover:bg-blue-500 hover:text-white px-4 py-2 rounded-lg transition-all">✏️ Edit</button>
-                                        <button onClick={() => window.confirm(`Delete RSVP?`) && executeDbAction(supabase.from("rsvps").delete().eq("id", r.id))} className="text-red-600 font-bold text-sm bg-red-50 hover:bg-red-500 hover:text-white px-4 py-2 rounded-lg transition-all">🗑️</button>
+                                        
+                                        {/* SAAS LOCK: Ensure we only delete if the eventId matches! */}
+                                        <button onClick={() => window.confirm(`Delete RSVP?`) && executeDbAction(supabase.from("rsvps").delete().eq("id", r.id).eq("event_id", eventId))} className="text-red-600 font-bold text-sm bg-red-50 hover:bg-red-500 hover:text-white px-4 py-2 rounded-lg transition-all">🗑️</button>
                                     </td>
                                 </>
                             )}

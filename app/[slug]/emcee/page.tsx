@@ -1,35 +1,26 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { useParams } from "next/navigation";
+import { supabase } from "../../../lib/supabaseClient";
 
-import DjBoard from "../../components/emcee/DjBoard";
-import ProjectorControl from "../../components/emcee/ProjectorControl";
-import GamesControl from "../../components/emcee/GamesControl";
-import RaffleControl from "../../components/emcee/RaffleControl";
-import GuestRoster from "../../components/emcee/GuestRoster";
+import DjBoard from "../../../components/emcee/DjBoard";
+import ProjectorControl from "../../../components/emcee/ProjectorControl";
+import GamesControl from "../../../components/emcee/GamesControl";
+import RaffleControl from "../../../components/emcee/RaffleControl";
+import GuestRoster from "../../../components/emcee/GuestRoster";
 
 export default function EmceePage() {
+  const params = useParams();
+  const eventSlug = params.slug;
+  const [eventId, setEventId] = useState<number | null>(null);
+  const [eventPasscode, setEventPasscode] = useState<string | null>(null);
+  const [invalidEvent, setInvalidEvent] = useState(false);
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passcodeInput, setPasscodeInput] = useState("");
   const [authError, setAuthError] = useState("");
-  const CORRECT_PASSCODE = "NYLA5"; 
 
-  useEffect(() => {
-    if (sessionStorage.getItem("host_auth") === "true") setIsAuthenticated(true);
-  }, []);
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (passcodeInput.toUpperCase() === CORRECT_PASSCODE) {
-      sessionStorage.setItem("host_auth", "true");
-      setIsAuthenticated(true);
-    } else {
-      setAuthError("Incorrect passcode!");
-      setPasscodeInput("");
-    }
-  };
-  
   const [guests, setGuests] = useState<any[]>([]);
   const [unclaimedPrizes, setUnclaimedPrizes] = useState<any[]>([]);
   const [games, setGames] = useState<any[]>([]); 
@@ -47,12 +38,41 @@ export default function EmceePage() {
   const [timerStatus, setTimerStatus] = useState<"idle" | "running" | "paused">("idle");
   const [pendingProofGuest, setPendingProofGuest] = useState<any>(null);
 
+  // 1. GET THE EVENT ID & PASSCODE FROM SUPABASE
+  useEffect(() => {
+    const fetchEventData = async () => {
+      const { data: eventData } = await supabase
+        .from("events")
+        .select("id, passcode")
+        .eq("slug", eventSlug)
+        .single();
+
+      if (!eventData) {
+        setInvalidEvent(true);
+        return;
+      }
+      setEventId(eventData.id);
+      setEventPasscode(eventData.passcode);
+
+      // Check if they already logged into THIS specific event previously
+      if (sessionStorage.getItem(`host_auth_${eventData.id}`) === "true") {
+          setIsAuthenticated(true);
+      }
+    };
+
+    if (eventSlug) fetchEventData();
+  }, [eventSlug]);
+
+
+  // 2. FETCH DATA & CONNECT WEBSOCKET (Only runs after auth & eventId are ready)
   const fetchData = async () => {
+    if (!eventId) return;
     setLoading(true);
     
-    const { data: guestData, error: guestError } = await supabase.from("guests").select("*"); 
-    const { data: rsvpData } = await supabase.from("rsvps").select("*"); 
-    const { data: gameData } = await supabase.from("games").select("*").order("id", { ascending: true });
+    // SAAS QUERY: Only fetch data for THIS specific event
+    const { data: guestData, error: guestError } = await supabase.from("guests").select("*").eq("event_id", eventId); 
+    const { data: rsvpData } = await supabase.from("rsvps").select("*").eq("event_id", eventId); 
+    const { data: gameData } = await supabase.from("games").select("*").eq("event_id", eventId).order("id", { ascending: true });
 
     if (gameData) setGames(gameData);
 
@@ -100,6 +120,7 @@ export default function EmceePage() {
     const { data: prizeData, error: prizeError } = await supabase
         .from("prizes")
         .select("*")
+        .eq("event_id", eventId)
         .eq("status", "unclaimed")
         .order("draw_order", { ascending: true });
         
@@ -110,13 +131,18 @@ export default function EmceePage() {
   };
 
   useEffect(() => {
-    fetchData();
-    const raffleChannel = supabase.channel("raffle");
-    raffleChannel.subscribe();
-    setChannel(raffleChannel);
-    return () => { supabase.removeChannel(raffleChannel); };
-  }, []);
+    if (isAuthenticated && eventId) {
+        fetchData();
+        // SAAS WEBSOCKET: Connect to the private channel
+        const raffleChannel = supabase.channel(`raffle_${eventId}`);
+        raffleChannel.subscribe();
+        setChannel(raffleChannel);
+        return () => { supabase.removeChannel(raffleChannel); };
+    }
+  }, [isAuthenticated, eventId]);
 
+
+  // Timer Logic
   useEffect(() => {
     let interval: any;
     if (timerStatus === "running" && timer > 0) {
@@ -134,6 +160,18 @@ export default function EmceePage() {
     return () => clearInterval(interval);
   }, [timerStatus, timer, channel]);
 
+  // LOGIN HANDLER
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (eventPasscode && passcodeInput.toUpperCase() === eventPasscode.toUpperCase()) {
+      sessionStorage.setItem(`host_auth_${eventId}`, "true"); // Store auth specifically for this event
+      setIsAuthenticated(true);
+    } else {
+      setAuthError("Incorrect passcode!");
+      setPasscodeInput("");
+    }
+  };
+
   const pauseTimer = () => { setTimerStatus("paused"); channel?.send({ type: "broadcast", event: "timer_sync", payload: { time: timer, status: "paused" }}); };
   const resumeTimer = () => { setTimerStatus("running"); channel?.send({ type: "broadcast", event: "timer_sync", payload: { time: timer, status: "running" }}); };
 
@@ -146,12 +184,14 @@ export default function EmceePage() {
     if (channel) await channel.send({ type: "broadcast", event: "play_sound", payload: { sound: soundFile } });
   };
 
+  // ACTIONS (All updated to target specific eventId if necessary, though ID matches already handle most isolation)
   const handleDemoReset = async () => {
     if (!window.confirm("🚨 WARNING: Reset all winners AND prizes back to 'Eligible/Unclaimed'?")) return;
     setLoading(true);
-    await supabase.from("guests").update({ status: "eligible", prize_won: null, proof_url: null }).eq("status", "won");
-    await supabase.from("prizes").update({ status: "unclaimed" }).eq("status", "claimed");
-    await supabase.from("games").update({ status: "pending", proof_url: null }).neq("id", 0);
+    // SAAS UPDATES: Ensure we only reset THIS event
+    await supabase.from("guests").update({ status: "eligible", prize_won: null, proof_url: null }).eq("event_id", eventId).eq("status", "won");
+    await supabase.from("prizes").update({ status: "unclaimed" }).eq("event_id", eventId).eq("status", "claimed");
+    await supabase.from("games").update({ status: "pending", proof_url: null }).eq("event_id", eventId).neq("id", 0);
 
     setPrizeDisplayed(false);
     setTimerStatus("idle");
@@ -246,10 +286,8 @@ export default function EmceePage() {
       
       const { data: urlData } = supabase.storage.from("guest-photos").getPublicUrl(filePath);
 
-      // INSTANT OPTIMISTIC UI UPDATE
       setGames(prev => prev.map(g => g.id === gameId ? { ...g, proof_url: urlData.publicUrl, status: "done" } : g));
 
-      // Update database
       const { error: updateError } = await supabase.from("games").update({ proof_url: urlData.publicUrl, status: "done" }).eq("id", gameId);
       if (updateError) throw updateError;
       
@@ -266,12 +304,14 @@ export default function EmceePage() {
       
       setLoading(true);
       await supabase.from("guests").update({ status: "eligible", prize_won: null }).eq("id", pendingProofGuest.id);
-      await supabase.from("prizes").update({ status: "unclaimed" }).eq("name", pendingProofGuest.prize_won);
+      await supabase.from("prizes").update({ status: "unclaimed" }).eq("name", pendingProofGuest.prize_won).eq("event_id", eventId);
       
       setTimerStatus("idle");
       if (channel) await channel.send({ type: "broadcast", event: "reset" });
       fetchData();
   };
+
+  if (invalidEvent) return <div className="fixed inset-0 bg-black flex items-center justify-center text-red-500 text-4xl font-black uppercase">Event Not Found</div>;
 
   if (!isAuthenticated) {
     return (

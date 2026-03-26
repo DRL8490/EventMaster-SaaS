@@ -1,450 +1,298 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { supabase } from "../lib/supabaseClient";
-import Confetti from "react-confetti";
 
-export default function ProjectorPage() {
-  const [audioUnlocked, setAudioUnlocked] = useState(false);
-  const [displayMode, setDisplayMode] = useState<"pregame" | "raffle" | "qr" | "games">("raffle");
-  const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
+export default function SuperAdminDashboard() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [passcodeInput, setPasscodeInput] = useState("");
+  const [authError, setAuthError] = useState("");
+  
+  const MASTER_PASSCODE = "FOUNDER2026"; 
 
-  const [winner, setWinner] = useState<any>(null);
-  const [isSpinning, setIsSpinning] = useState(false);
-  const [shuffleData, setShuffleData] = useState<{ guest: any; key: number } | null>(null);
-  const [prizeName, setPrizeName] = useState("");
+  const [events, setEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [compilingId, setCompilingId] = useState<number | null>(null);
 
-  const [activeGame, setActiveGame] = useState<{name: string, winners: number} | null>(null);
-
-  const [timer, setTimer] = useState(60);
-  const [timerStatus, setTimerStatus] = useState<"idle" | "running" | "paused">("idle");
+  const [newName, setNewName] = useState("");
+  const [newSlug, setNewSlug] = useState("");
+  const [newPasscode, setNewPasscode] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
 
   useEffect(() => {
-    setWindowSize({ width: window.innerWidth, height: window.innerHeight });
-    
-    const channel = supabase.channel("raffle");
+    if (sessionStorage.getItem("super_admin_auth") === "true") {
+      setIsAuthenticated(true);
+    }
+  }, []);
 
-    channel
-      .on("broadcast", { event: "set_display" }, (payload) => {
-        setDisplayMode(payload.payload.mode);
-      })
-      .on("broadcast", { event: "play_sound" }, (payload) => {
-        try { 
-          const sound = new Audio(`/${payload.payload.sound}`); 
-          sound.currentTime = 0; 
-          sound.play().catch(() => {}); 
-        } catch(e) {
-          console.error("Audio error:", e);
-        }
-      })
-      .on("broadcast", { event: "timer_sync" }, (payload) => {
-        setTimer(payload.payload.time);
-        setTimerStatus(payload.payload.status);
-      })
-      .on("broadcast", { event: "show_game" }, (payload) => {
-        setDisplayMode("games");
-        setActiveGame({ 
-          name: payload.payload.name, 
-          winners: payload.payload.winners 
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (passcodeInput === MASTER_PASSCODE) {
+      sessionStorage.setItem("super_admin_auth", "true");
+      setIsAuthenticated(true);
+    } else {
+      setAuthError("Incorrect master passcode!");
+      setPasscodeInput("");
+    }
+  };
+
+  const fetchEvents = async () => {
+    setLoading(true);
+    const { data, error } = await supabase.from("events").select("*").order("created_at", { ascending: false });
+    if (data) setEvents(data);
+    if (error) console.error("Error fetching events:", error);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) fetchEvents();
+  }, [isAuthenticated]);
+
+  const handleSlugFormat = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    setNewSlug(formatted);
+  };
+
+  const handleCreateEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsCreating(true);
+    setCreateError("");
+
+    try {
+      const { data: newEvent, error: eventError } = await supabase
+        .from("events")
+        .insert([{ name: newName, slug: newSlug, passcode: newPasscode }])
+        .select()
+        .single();
+
+      if (eventError) {
+        if (eventError.code === '23505') throw new Error("An event with that URL slug already exists!");
+        throw eventError;
+      }
+
+      const { error: configError } = await supabase.from("raffle_config").insert([{ event_id: newEvent.id }]);
+      if (configError) throw configError;
+
+      setNewName("");
+      setNewSlug("");
+      setNewPasscode("");
+      fetchEvents();
+      
+    } catch (error: any) {
+      setCreateError(error.message);
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  // --- NEW: THE DEEP CLEAN DELETE FUNCTION ---
+  const handleDeleteEvent = async (eventId: number, eventName: string) => {
+    if (!window.confirm(`🚨 WARNING: Are you sure you want to completely delete "${eventName}"?`)) return;
+    if (!window.confirm(`FINAL CHECK: This will permanently erase ALL guests, winners, settings, and RSVPs for this event. This CANNOT be undone. Proceed?`)) return;
+
+    try {
+      setLoading(true);
+      // Delete all child records first to prevent Foreign Key constraint errors
+      await supabase.from("rsvps").delete().eq("event_id", eventId);
+      await supabase.from("guests").delete().eq("event_id", eventId);
+      await supabase.from("prizes").delete().eq("event_id", eventId);
+      await supabase.from("games").delete().eq("event_id", eventId);
+      await supabase.from("suppliers").delete().eq("event_id", eventId);
+      await supabase.from("raffle_config").delete().eq("event_id", eventId);
+      
+      // Finally, delete the event itself
+      const { error } = await supabase.from("events").delete().eq("id", eventId);
+      if (error) throw error;
+      
+      fetchEvents();
+    } catch (error: any) {
+      alert("Error deleting event: " + error.message);
+      setLoading(false);
+    }
+  };
+
+  // --- NEW: THE MASTER REPORT COMPILER ---
+  const handleCompileData = async (eventId: number, eventName: string) => {
+    setCompilingId(eventId);
+    try {
+      const { data: guests } = await supabase.from("guests").select("*").eq("event_id", eventId).order("id", { ascending: true });
+      const { data: games } = await supabase.from("games").select("*").eq("event_id", eventId).order("id", { ascending: true });
+      
+      let csvContent = "--- EVENT MASTER POST-EVENT REPORT ---\n\n";
+      
+      // 1. Guest & Winners Section
+      csvContent += "--- GUEST REGISTRY & WINNERS ---\n";
+      csvContent += "Name,Nickname,Category,Status,Prize Won,Photo Link\n";
+      if (guests && guests.length > 0) {
+        guests.forEach(g => {
+          const name = `"${g.full_name || ''}"`;
+          const nickname = `"${g.nickname || ''}"`;
+          const prize = `"${g.prize_won || ''}"`;
+          // If they won, show the proof photo, otherwise show their check-in selfie
+          const photo = `"${g.proof_url || g.photo_url || ''}"`; 
+          csvContent += `${name},${nickname},${g.category},${g.status},${prize},${photo}\n`;
         });
-        setWinner(null); 
-        setIsSpinning(false); 
-        setShuffleData(null); 
-        setPrizeName(""); 
-        setTimerStatus("idle");
-      })
-      .on("broadcast", { event: "spin" }, async (payload) => {
-        setDisplayMode("raffle"); 
-        setWinner(null); 
-        setShuffleData(null); 
-        setIsSpinning(true); 
-        setPrizeName(payload.payload.prize);
-        setTimerStatus("idle"); 
-        
-        try { 
-          new Audio("/spin.mp3").play().catch(() => {}); 
-        } catch(e) {
-          console.error("Audio error:", e);
-        }
+      } else {
+        csvContent += "No guests checked in.\n";
+      }
+      
+      // 2. Games Section
+      csvContent += "\n--- GAME RESULTS ---\n";
+      csvContent += "Game Name,Status,Winner Photo Link\n";
+      if (games && games.length > 0) {
+        games.forEach(g => {
+          const name = `"${g.name || ''}"`;
+          const photo = `"${g.proof_url || ''}"`;
+          csvContent += `${name},${g.status},${photo}\n`;
+        });
+      } else {
+        csvContent += "No games played.\n";
+      }
 
-        const prizeCat = payload.payload.prizeCategory || "All";
-        let query = supabase.from("guests").select("*").eq("status", "eligible");
-        
-        if (prizeCat !== "All") {
-          query = query.eq("category", prizeCat);
-        }
+      // 3. Trigger Download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `${eventName.replace(/\s+/g, '_')}_Master_Report.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
 
-        const { data } = await query;
-        const pool = data && data.length > 0 ? data : [payload.payload.winner];
+    } catch (error: any) {
+      alert("Error compiling data: " + error.message);
+    } finally {
+      setCompilingId(null);
+    }
+  };
 
-        setTimeout(() => {
-          setIsSpinning(false);
-          let shuffleCount = 0;
-          const maxShuffles = 20;
-
-          const shuffleInterval = setInterval(() => {
-            const randomPerson = pool[Math.floor(Math.random() * pool.length)];
-            setShuffleData({ guest: randomPerson, key: Math.random() });
-            shuffleCount++;
-
-            if (shuffleCount >= maxShuffles) {
-              clearInterval(shuffleInterval);
-              setShuffleData(null);
-              setWinner(payload.payload.winner);
-              
-              try { 
-                new Audio("/win.mp3").play().catch(() => {}); 
-              } catch(e) {
-                console.error("Audio error:", e);
-              }
-            }
-          }, 200);
-        }, 1500);
-      })
-      .on("broadcast", { event: "show_prize" }, (payload) => {
-        setDisplayMode("raffle"); 
-        setWinner(null); 
-        setIsSpinning(false); 
-        setShuffleData(null); 
-        setPrizeName(payload.payload.prize); 
-        setTimerStatus("idle");
-      })
-      .on("broadcast", { event: "reset" }, () => {
-        setWinner(null); 
-        setIsSpinning(false); 
-        setShuffleData(null); 
-        setPrizeName(""); 
-        setTimerStatus("idle");
-        
-        if (displayMode === "games") {
-             setDisplayMode("pregame");
-             setActiveGame(null);
-        }
-      })
-      .subscribe();
-
-    return () => { 
-      supabase.removeChannel(channel); 
-    };
-  }, [displayMode]);
-
-  if (!audioUnlocked) {
+  if (!isAuthenticated) {
     return (
-      <div 
-        onClick={() => setAudioUnlocked(true)} 
-        className="fixed inset-0 bg-gray-900 flex flex-col items-center justify-center cursor-pointer z-[100] hover:bg-gray-800 transition-colors"
-      >
-        <div className="text-8xl mb-6 animate-bounce">🔈</div>
-        <h1 className="text-5xl font-black text-white uppercase tracking-widest text-center animate-pulse px-10">
-          Tap anywhere to Unlock Audio<br/>& Start Projector
-        </h1>
+      <div className="fixed inset-0 min-h-screen bg-gray-900 flex items-center justify-center p-4 font-sans z-[999]">
+        <form onSubmit={handleLogin} className="bg-white p-8 rounded-[2.5rem] shadow-2xl max-w-sm w-full text-center border-8 border-purple-500 animate-in zoom-in duration-300">
+          <div className="text-6xl mb-4 animate-bounce">👑</div>
+          <h1 className="text-2xl font-black text-gray-800 uppercase mb-2 leading-none">Super Admin</h1>
+          <p className="text-gray-500 font-bold text-xs mb-6">Enter the master platform passcode.</p>
+          {authError && <div className="bg-red-50 text-red-600 border-2 border-red-200 p-2 rounded-xl font-black text-xs mb-4 animate-bounce">{authError}</div>}
+          <input type="password" value={passcodeInput} onChange={(e) => setPasscodeInput(e.target.value)} className="w-full text-center text-3xl font-black p-4 bg-gray-50 border-2 border-gray-200 rounded-2xl mb-4 focus:border-purple-500 outline-none uppercase tracking-widest placeholder:text-gray-300" placeholder="•••••" />
+          <button type="submit" className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white font-black text-sm rounded-2xl uppercase transition-all active:scale-95 shadow-xl">Enter God Mode</button>
+        </form>
       </div>
     );
   }
 
   return (
-    <div 
-      className="fixed inset-0 w-full flex flex-col items-center justify-center p-4 md:p-6 bg-transparent overflow-hidden" 
-      style={{ cursor: "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32\" height=\"32\" viewBox=\"0 0 32 32\"><circle cx=\"16\" cy=\"16\" r=\"10\" fill=\"%23a855f7\" opacity=\"0.8\"/><circle cx=\"16\" cy=\"16\" r=\"6\" fill=\"%23ffffff\"/></svg>') 16 16, auto" }}
-    >
-      
-      {displayMode === "pregame" && <PregameBubbles />}
-
-      {/* THE NEW DUAL-MEMORY QR DISPLAY */}
-      {displayMode === "qr" && (
-        <div className="bg-white/95 backdrop-blur-xl p-10 md:p-16 rounded-[4rem] shadow-2xl text-center border-8 border-purple-400 animate-in zoom-in duration-700 w-[95%] max-w-7xl mx-auto flex flex-col items-center z-10">
-          <h1 className="text-4xl md:text-6xl font-black text-purple-600 uppercase mb-12 drop-shadow-sm tracking-widest">
-            Scan to Relive the Magic!
-          </h1>
+    <div className="min-h-screen w-full bg-gray-100 p-4 md:p-8 font-sans">
+      <div className="max-w-6xl mx-auto space-y-8">
+        
+        <div className="bg-gray-900 rounded-[3rem] shadow-2xl p-8 md:p-12 text-center text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
+          <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-pulse"></div>
           
-          {/* Using gap-16 md:gap-32 and justify-between to force them FAR apart on the projector */}
-          <div className="flex flex-col md:flex-row items-stretch justify-between gap-16 md:gap-32 w-full px-4 md:px-12">
-              
-              {/* QR 1: Winners & Bubbles (Left Side) */}
-              <div className="flex flex-col items-center justify-center bg-gray-50 p-8 md:p-10 rounded-3xl border-4 border-gray-200 shadow-inner w-full md:w-1/2">
-                  <h2 className="text-3xl md:text-5xl font-black text-gray-800 uppercase tracking-widest mb-4">Winners QR</h2>
-                  <p className="text-lg font-bold text-gray-500 uppercase tracking-widest mb-8">See all winners & guests!</p>
-                  <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin + '/memory' : '')}`} 
-                      alt="Memory QR Code" 
-                      className="w-64 h-64 md:w-96 md:h-96 rounded-2xl shadow-xl border-8 border-white transition-transform hover:scale-105" 
-                  />
-              </div>
-
-              {/* QR 2: Google Drive (Right Side) */}
-              <div className="flex flex-col items-center justify-center bg-blue-50 p-8 md:p-10 rounded-3xl border-4 border-blue-200 shadow-inner w-full md:w-1/2">
-                  <h2 className="text-3xl md:text-5xl font-black text-blue-700 uppercase tracking-widest mb-4 whitespace-nowrap">Download / Upload</h2>
-                  <p className="text-lg font-bold text-blue-500 uppercase tracking-widest mb-8">Share raw photos & videos!</p>
-                  <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent('https://drive.google.com/drive/folders/1i1ItVCpTjg-GVtwEbRLv9RJjAcgilGgS?usp=sharing')}`} 
-                      alt="Drive QR Code" 
-                      className="w-64 h-64 md:w-96 md:h-96 rounded-2xl shadow-xl border-8 border-white transition-transform hover:scale-105" 
-                  />
-              </div>
-              
-          </div>
+          <h1 className="text-4xl md:text-5xl font-black uppercase tracking-widest drop-shadow-lg relative z-10">Party Master SaaS</h1>
+          <p className="text-purple-300 font-bold uppercase tracking-widest mt-2 relative z-10">Global Platform Dashboard</p>
         </div>
-      )}
 
-      {/* GAMES PROJECTOR UI */}
-      {displayMode === "games" && activeGame && (
-        <div className="bg-green-400 text-green-900 py-10 px-8 md:py-16 md:px-12 rounded-[4rem] shadow-2xl text-center border-8 border-green-200 animate-in zoom-in duration-700 w-[95%] max-w-6xl mx-auto flex flex-col items-center justify-center relative overflow-hidden z-10 max-h-[90vh]">
-            <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white to-transparent pointer-events-none"></div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* CREATE NEW EVENT FORM */}
+          <div className="lg:col-span-1 bg-white p-6 md:p-8 rounded-[2.5rem] shadow-xl border-4 border-purple-100 h-fit">
+            <h2 className="text-2xl font-black text-purple-600 uppercase mb-6 tracking-widest">➕ New Event</h2>
             
-            <span className="text-7xl md:text-8xl mb-4 md:mb-6 animate-bounce relative z-10">🎲</span>
-            <p className="text-2xl md:text-4xl font-bold uppercase tracking-widest text-green-800 mb-4 md:mb-6 relative z-10">
-              Get Ready to Play:
-            </p>
-            
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-black uppercase tracking-tighter drop-shadow-lg mb-8 relative z-10 leading-tight break-words max-w-full px-4">
-                {activeGame.name}
-            </h1>
-            
-            <div className="bg-white/95 px-8 py-4 md:px-12 md:py-5 rounded-full border-4 border-green-500 shadow-xl relative z-10 animate-pulse mt-auto flex-shrink-0">
-                <p className="text-2xl md:text-4xl font-black text-green-700 uppercase tracking-widest">
-                    Looking for {activeGame.winners} {activeGame.winners === 1 ? 'Winner' : 'Winners'}!
-                </p>
-            </div>
-        </div>
-      )}
-
-      {/* RAFFLE PROJECTOR UI */}
-      {displayMode === "raffle" && (
-        <>
-          {winner && !isSpinning && !shuffleData && (
-            <div className="absolute inset-0 z-50 pointer-events-none transform scale-150 origin-center overflow-hidden">
-              <Confetti 
-                width={windowSize.width} 
-                height={windowSize.height} 
-                recycle={false} 
-                numberOfPieces={800} 
-                gravity={0.15} 
-              />
-            </div>
-          )}
-
-          <style dangerouslySetInnerHTML={{
-            __html: `
-              @keyframes slotDrop { 
-                0% { transform: translateY(-100%); opacity: 0; } 
-                40% { opacity: 1; } 
-                100% { transform: translateY(0); opacity: 1; } 
-              } 
-              .animate-slot { 
-                animation: slotDrop 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; 
-              }
-            `
-          }} />
-
-          {/* IDLE RAFFLE STATE */}
-          {!isSpinning && !shuffleData && !winner && !prizeName && (
-            <div className="bg-black/40 backdrop-blur-sm border border-white/20 p-12 rounded-[3rem] shadow-2xl text-center w-full max-w-5xl mx-auto shrink min-h-0">
-              <h1 className="text-6xl font-black text-white drop-shadow-xl uppercase tracking-widest mb-6">Nyla&apos;s 5th Birthday</h1>
-              <p className="text-4xl text-blue-300 font-bold tracking-widest uppercase animate-pulse">Waiting for Emcee...</p>
-            </div>
-          )}
-
-          {/* SHOWING PRIZE NAME ONLY */}
-          {!isSpinning && !shuffleData && !winner && prizeName && (
-            <div className="bg-yellow-400 text-yellow-900 py-16 px-12 rounded-[4rem] shadow-2xl text-center border-8 border-yellow-200 animate-in zoom-in duration-700 w-[90%] max-w-5xl mx-auto flex flex-col items-center justify-center">
-              <p className="text-5xl font-bold uppercase tracking-widest text-yellow-800 mb-4">Upcoming Prize:</p>
-              <h1 className="text-7xl font-black uppercase tracking-tighter drop-shadow-lg break-words px-4 leading-tight">
-                🎁 {prizeName} 🎁
-              </h1>
-            </div>
-          )}
-
-          {/* FLOATING PRIZE HEADER DURING SPIN/WIN */}
-          {(isSpinning || shuffleData || winner) && prizeName && (
-            <div className="bg-yellow-400 text-yellow-900 px-6 py-3 rounded-full shadow-2xl font-black text-4xl uppercase tracking-widest mb-4 border-4 border-yellow-200 animate-in slide-in-from-top duration-500 z-10 text-center break-words max-w-[90%] leading-tight">
-              🎁 {prizeName} 🎁
-            </div>
-          )}
-
-          {/* SPINNING ANIMATION */}
-          {isSpinning && (
-            <div className="animate-bounce bg-white/90 backdrop-blur-md p-16 rounded-[4rem] shadow-2xl text-center border-8 border-blue-500 w-full max-w-5xl mx-auto z-10">
-              <h1 className="text-8xl font-black text-blue-600 uppercase tracking-tighter">🎰 Drawing...</h1>
-            </div>
-          )}
-
-          {/* SLOT MACHINE SHUFFLE */}
-          {shuffleData && (
-            <div className="bg-white/95 backdrop-blur-xl rounded-[3rem] shadow-2xl border-8 border-blue-400 w-full max-w-4xl transform scale-105 h-72 flex items-center justify-center p-6 mx-auto z-10">
-              <div key={shuffleData.key} className="flex items-center justify-center gap-8 w-full animate-slot">
-                <img 
-                  src={shuffleData.guest.photo_url} 
-                  alt="Shuffle Guest" 
-                  className="w-56 h-56 object-cover rounded-3xl border-4 border-blue-500" 
-                />
-                <h1 className="text-8xl font-black text-blue-600 uppercase truncate pb-2">
-                  {shuffleData.guest.nickname}
-                </h1>
-              </div>
-            </div>
-          )}
-
-          {/* WINNER ANNOUNCEMENT */}
-          {winner && !isSpinning && !shuffleData && (
-            <div className="bg-white/95 backdrop-blur-xl p-10 rounded-[3rem] shadow-2xl text-center border-8 border-green-400 animate-in zoom-in duration-700 w-[90%] max-w-4xl flex flex-col items-center justify-center gap-3 mx-auto z-10 max-h-[85vh]">
-              <div className="text-5xl animate-bounce">🎉🏆🎉</div>
-              <h2 className="text-2xl font-bold text-gray-500 uppercase tracking-widest">Congratulations</h2>
-              <h1 className="text-6xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600 uppercase py-1 truncate max-w-full">
-                {winner.nickname}!
-              </h1>
+            <form onSubmit={handleCreateEvent} className="space-y-4">
+              {createError && <div className="bg-red-50 text-red-600 border-2 border-red-200 p-3 rounded-xl font-black text-xs animate-bounce">{createError}</div>}
               
-              <div className="flex justify-center py-2">
-                <img 
-                  src={winner.photo_url} 
-                  alt="Winner" 
-                  className="max-h-[25vh] aspect-square object-cover rounded-full border-8 border-blue-500 shadow-2xl" 
-                />
+              <div>
+                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1 ml-1">Event Name</label>
+                <input required type="text" placeholder="e.g. Acme Corp Holiday" value={newName} onChange={(e) => setNewName(e.target.value)} className="w-full p-4 bg-gray-50 border-2 border-gray-200 rounded-2xl focus:border-purple-500 outline-none transition-all font-bold text-gray-800" />
               </div>
-              
-              {/* STAGE COUNTDOWN TIMER */}
-              {timerStatus !== "idle" && (
-                <div className={`mt-4 px-12 py-4 rounded-full border-4 ${timerStatus === "paused" ? "bg-gray-200 border-gray-400 text-gray-600" : "bg-red-100 border-red-500 text-red-600 animate-pulse"}`}>
-                    <p className="text-sm font-black uppercase tracking-widest leading-none mb-1 text-center">Time to Claim</p>
-                    <p className="text-5xl font-black tracking-widest text-center">⏱️ {timer}s</p>
+
+              <div>
+                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1 ml-1">URL Slug</label>
+                <div className="flex items-center bg-gray-50 border-2 border-gray-200 rounded-2xl focus-within:border-purple-500 transition-all overflow-hidden">
+                  <span className="pl-4 text-gray-400 font-bold text-sm">site.com/</span>
+                  <input required type="text" placeholder="acme-party" value={newSlug} onChange={handleSlugFormat} className="w-full p-4 bg-transparent outline-none font-bold text-purple-600" />
                 </div>
-              )}
-            </div>
-          )}
-        </>
-      )}
+              </div>
 
-    </div>
-  );
-}
+              <div>
+                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1 ml-1">Host Passcode</label>
+                <input required type="text" placeholder="e.g. ACME2026" value={newPasscode} onChange={(e) => setNewPasscode(e.target.value.toUpperCase())} className="w-full p-4 bg-gray-50 border-2 border-gray-200 rounded-2xl focus:border-purple-500 outline-none transition-all font-black text-gray-800 uppercase tracking-widest" />
+              </div>
 
-// --- SUB-COMPONENT: CONTINUOUS NON-OVERLAPPING LANE BUBBLES ---
-function PregameBubbles() {
-  const [guests, setGuests] = useState<any[]>([]);
-  const guestsRef = useRef<any[]>([]);
-  const nextGuestIndex = useRef(0);
-  const [bubbles, setBubbles] = useState<any[]>([]);
-  const priorityQueueRef = useRef<any[]>([]);
-  
-  const MAX_BUBBLES = 5; 
-
-  useEffect(() => {
-    const fetchGuests = async () => {
-      const { data } = await supabase.from("guests").select("*").order("id", { ascending: true });
-      if (data) {
-          setGuests(data);
-          guestsRef.current = data;
-      }
-    };
-    
-    fetchGuests();
-
-    const sub = supabase.channel("realtime_guests").on(
-      "postgres_changes", 
-      { event: "INSERT", schema: "public", table: "guests" }, 
-      (payload) => {
-        setGuests((prev) => {
-            const updated = [...prev, payload.new];
-            guestsRef.current = updated;
-            priorityQueueRef.current.push(payload.new);
-            return updated;
-        });
-      }
-    ).subscribe();
-
-    return () => { 
-      supabase.removeChannel(sub); 
-    };
-  }, []);
-
-  useEffect(() => {
-    if (guests.length > 0 && bubbles.length === 0) {
-        const slotsToCreate = Math.min(MAX_BUBBLES, guests.length || MAX_BUBBLES);
-        
-        const initialBubbles = Array.from({ length: slotsToCreate }).map((_, i) => {
-            const g = guests[nextGuestIndex.current % guests.length];
-            nextGuestIndex.current++;
-            return {
-                slotId: i,
-                guest: g,
-                left: i * 17 + 8, 
-                duration: 14 + Math.random() * 8, 
-                delay: i * 3, 
-            };
-        });
-        
-        setBubbles(initialBubbles);
-    }
-  }, [guests, bubbles.length]);
-
-  const handleIteration = (slotId: number) => {
-      if (guestsRef.current.length === 0) return;
-      
-      setBubbles(prev => prev.map(b => {
-          if (b.slotId === slotId) {
-              let nextG;
-              if (priorityQueueRef.current.length > 0) {
-                  nextG = priorityQueueRef.current.shift(); 
-              } else {
-                  nextG = guestsRef.current[nextGuestIndex.current % guestsRef.current.length];
-                  nextGuestIndex.current++;
-              }
-              return { ...b, guest: nextG }; 
-          }
-          return b;
-      }));
-  };
-
-  return (
-    <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-      
-      <style dangerouslySetInnerHTML={{
-        __html: `
-          @keyframes floatContinuous {
-            0% { top: 120vh; opacity: 0; transform: scale(0.8); }
-            5% { opacity: 1; transform: scale(1); }
-            95% { opacity: 1; }
-            100% { top: -40vh; opacity: 0; }
-          }
-        `
-      }} />
-
-      <div className="absolute top-10 w-full text-center z-50">
-          <h1 className="text-6xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] uppercase tracking-widest">
-            Welcome to the Party!
-          </h1>
-          <p className="text-3xl text-blue-300 font-bold drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] mt-2">
-            Get your phones ready to scan!
-          </p>
-      </div>
-      
-      {bubbles.map((b) => {
-        if (!b.guest) return null;
-
-        return (
-          <div 
-            key={b.slotId} 
-            onAnimationIteration={() => handleIteration(b.slotId)}
-            className={`absolute rounded-full overflow-hidden flex items-center justify-center will-change-transform border-4 border-white shadow-[0_0_30px_rgba(59,130,246,0.8)] z-30 opacity-95`}
-            style={{
-              width: "240px",
-              height: "240px",
-              left: `${b.left}vw`, 
-              top: `120vh`,
-              animation: `floatContinuous ${b.duration}s linear ${b.delay}s infinite`, 
-            } as React.CSSProperties}
-          >
-            <img 
-              src={b.guest.photo_url} 
-              className="w-full h-full object-cover" 
-              alt="Guest Bubble" 
-            />
-
-            <div className="absolute bottom-0 w-full bg-black/60 backdrop-blur-sm text-white font-black text-center py-2 flex flex-col items-center justify-center">
-              <span className="text-base uppercase leading-none">{b.guest.nickname}</span>
-            </div>
+              <button type="submit" disabled={isCreating} className={`w-full py-4 rounded-2xl text-sm font-black text-white shadow-xl transition-all uppercase tracking-widest mt-2 ${isCreating ? "bg-gray-400" : "bg-purple-600 hover:bg-purple-700 active:scale-95"}`}>
+                {isCreating ? "Spinning up Database..." : "Deploy Event"}
+              </button>
+            </form>
           </div>
-        );
-      })}
+
+          {/* ACTIVE EVENTS LIST */}
+          <div className="lg:col-span-2 space-y-4">
+            <h2 className="text-2xl font-black text-gray-800 uppercase mb-6 tracking-widest px-2">🚀 Active Tenants</h2>
+            
+            {loading ? (
+              <div className="text-center p-12"><p className="text-purple-600 font-black animate-pulse uppercase tracking-widest">Loading Platform Data...</p></div>
+            ) : events.length === 0 ? (
+              <div className="bg-white p-12 rounded-[2.5rem] shadow-sm border-2 border-dashed border-gray-300 text-center">
+                <p className="text-gray-400 font-bold uppercase">No events created yet.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {events.map((event) => (
+                  <div key={event.id} className="bg-white p-6 rounded-[2rem] shadow-lg border-2 border-gray-100 hover:border-purple-300 transition-colors group relative flex flex-col h-full">
+                    
+                    <div className="absolute top-4 right-4 bg-purple-100 text-purple-700 text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-widest">
+                      ID: {event.id}
+                    </div>
+
+                    <h3 className="text-xl font-black text-gray-900 mb-1 pr-12 truncate">{event.name}</h3>
+                    <p className="text-gray-500 font-bold text-sm mb-4">/{event.slug}</p>
+                    
+                    <div className="bg-gray-50 p-3 rounded-xl mb-4 border border-gray-200">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Passcode</p>
+                      <p className="font-mono font-bold text-gray-700 tracking-widest">{event.passcode}</p>
+                    </div>
+
+                    <div className="flex flex-col gap-2 mb-4">
+                      <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Quick Links</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Link href={`/${event.slug}`} target="_blank" className="text-center py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg transition-colors">📺 Projector</Link>
+                        <Link href={`/${event.slug}/guest`} target="_blank" className="text-center py-2 bg-green-50 hover:bg-green-100 text-green-700 text-xs font-bold rounded-lg transition-colors">📱 Door</Link>
+                        <Link href={`/${event.slug}/admin`} target="_blank" className="text-center py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-lg transition-colors">⚙️ Admin</Link>
+                        <Link href={`/${event.slug}/emcee`} target="_blank" className="text-center py-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-700 text-xs font-bold rounded-lg transition-colors">🎤 Emcee</Link>
+                      </div>
+                    </div>
+
+                    {/* SUPER ADMIN CONTROLS (Pushed to the bottom) */}
+                    <div className="mt-auto pt-4 border-t-2 border-dashed border-gray-100 flex justify-between gap-2">
+                        <button 
+                            onClick={() => handleCompileData(event.id, event.name)} 
+                            disabled={compilingId === event.id}
+                            className="flex-1 bg-gray-800 hover:bg-black text-white text-[10px] font-black uppercase tracking-widest py-2 rounded-lg transition-colors disabled:bg-gray-400"
+                        >
+                            {compilingId === event.id ? "⏳ Compiling..." : "📥 Compile Report"}
+                        </button>
+                        
+                        <button 
+                            onClick={() => handleDeleteEvent(event.id, event.name)} 
+                            className="bg-red-50 hover:bg-red-500 text-red-500 hover:text-white text-sm font-black px-3 py-2 rounded-lg transition-colors"
+                            title="Delete Event"
+                        >
+                            🗑️
+                        </button>
+                    </div>
+
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+        </div>
+      </div>
     </div>
   );
 }

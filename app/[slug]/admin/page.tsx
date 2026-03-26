@@ -1,39 +1,29 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { supabase } from "../../lib/supabaseClient";
+import { useParams } from "next/navigation";
+import { supabase } from "../../../lib/supabaseClient";
 
-import StatusTab from "../../components/admin/StatusTab";
-import RsvpsTab from "../../components/admin/RsvpsTab";
-import GuestsTab from "../../components/admin/GuestsTab";
-import PrizesTab from "../../components/admin/PrizesTab";
-import SuppliersTab from "../../components/admin/SuppliersTab";
-import BackgroundsTab from "../../components/admin/BackgroundsTab";
-// FIXED: Added Games Component
-import GamesTab from "../../components/admin/GamesTab";
+import StatusTab from "../../../components/admin/StatusTab";
+import RsvpsTab from "../../../components/admin/RsvpsTab";
+import GuestsTab from "../../../components/admin/GuestsTab";
+import PrizesTab from "../../../components/admin/PrizesTab";
+import SuppliersTab from "../../../components/admin/SuppliersTab";
+import BackgroundsTab from "../../../components/admin/BackgroundsTab";
+import GamesTab from "../../../components/admin/GamesTab";
 
 export default function AdminPage() {
+  const params = useParams();
+  const eventSlug = params.slug;
+  const [eventId, setEventId] = useState<number | null>(null);
+  const [eventPasscode, setEventPasscode] = useState<string | null>(null);
+  const [invalidEvent, setInvalidEvent] = useState(false);
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passcodeInput, setPasscodeInput] = useState("");
   const [authError, setAuthError] = useState("");
-  const CORRECT_PASSCODE = "NYLA4+1";
 
-  useEffect(() => {
-    if (sessionStorage.getItem("host_auth") === "true") setIsAuthenticated(true);
-  }, []);
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (passcodeInput.toUpperCase() === CORRECT_PASSCODE) {
-      sessionStorage.setItem("host_auth", "true");
-      setIsAuthenticated(true);
-    } else {
-      setAuthError("Incorrect passcode!");
-      setPasscodeInput("");
-    }
-  };
-
-  const [activeTab, setActiveTab] = useState("games"); // Defaulting to games to test!
+  const [activeTab, setActiveTab] = useState("games"); 
   const [loading, setLoading] = useState(true);
   const [dbError, setDbError] = useState("");
 
@@ -48,11 +38,9 @@ export default function AdminPage() {
   const [prizes, setPrizes] = useState<any[]>([]);
   const [rsvps, setRsvps] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
-  // FIXED: Added Games State
   const [games, setGames] = useState<any[]>([]);
   const [stats, setStats] = useState({ total: 0, eligible: 0, winners: 0 });
 
-  // FIXED: Added Games to navigation tabs
   const tabs = [
     { id: "status", title: "🚧 Status" },
     { id: "rsvps", title: "💌 RSVPs" },
@@ -69,18 +57,54 @@ export default function AdminPage() {
     return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   };
 
+  // 1. GET THE EVENT ID & PASSCODE FROM SUPABASE
+  useEffect(() => {
+    const fetchEventData = async () => {
+      const { data: eventData } = await supabase
+        .from("events")
+        .select("id, passcode")
+        .eq("slug", eventSlug)
+        .single();
+
+      if (!eventData) {
+        setInvalidEvent(true);
+        return;
+      }
+      setEventId(eventData.id);
+      setEventPasscode(eventData.passcode);
+
+      if (sessionStorage.getItem(`admin_auth_${eventData.id}`) === "true") {
+          setIsAuthenticated(true);
+      }
+    };
+
+    if (eventSlug) fetchEventData();
+  }, [eventSlug]);
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (eventPasscode && passcodeInput.toUpperCase() === eventPasscode.toUpperCase()) {
+      sessionStorage.setItem(`admin_auth_${eventId}`, "true");
+      setIsAuthenticated(true);
+    } else {
+      setAuthError("Incorrect passcode!");
+      setPasscodeInput("");
+    }
+  };
+
+  // 2. FETCH DATA STRICTLY FOR THIS EVENT
   const fetchData = async () => {
+    if (!eventId) return;
     setLoading(true);
     setDbError("");
 
-    // FIXED: Added games fetch
     const [configRes, guestRes, prizeRes, rsvpRes, supplierRes, gameRes] = await Promise.all([
-        supabase.from("raffle_config").select("*").single(),
-        supabase.from("guests").select("*"),
-        supabase.from("prizes").select("*"),
-        supabase.from("rsvps").select("*"),
-        supabase.from("suppliers").select("*, supplier_payments(*)"),
-        supabase.from("games").select("*").order("id", { ascending: true })
+        supabase.from("raffle_config").select("*").eq("event_id", eventId).single(),
+        supabase.from("guests").select("*").eq("event_id", eventId),
+        supabase.from("prizes").select("*").eq("event_id", eventId),
+        supabase.from("rsvps").select("*").eq("event_id", eventId),
+        supabase.from("suppliers").select("*, supplier_payments(*)").eq("event_id", eventId),
+        supabase.from("games").select("*").eq("event_id", eventId).order("id", { ascending: true })
     ]);
 
     if (configRes.data) {
@@ -124,12 +148,16 @@ export default function AdminPage() {
     if (prizeRes.data) setPrizes([...prizeRes.data].sort((a, b) => (a.draw_order || 0) - (b.draw_order || 0)));
     if (rsvpRes.data) setRsvps([...rsvpRes.data].sort((a, b) => b.id - a.id));
     if (supplierRes.data) setSuppliers([...supplierRes.data].sort((a, b) => b.id - a.id));
-    if (gameRes.data) setGames(gameRes.data); // FIXED: Set games state
+    if (gameRes.data) setGames(gameRes.data); 
 
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { 
+    if (isAuthenticated && eventId) {
+      fetchData(); 
+    }
+  }, [isAuthenticated, eventId]);
 
   const executeDbAction = async (action: any) => {
     const { error } = await action;
@@ -138,33 +166,38 @@ export default function AdminPage() {
   };
 
   const handleToggleRegistration = async () => {
-    await executeDbAction(supabase.from("raffle_config").update({ entries_open: !registrationOpen }).eq("id", 1));
+    await executeDbAction(supabase.from("raffle_config").update({ entries_open: !registrationOpen }).eq("event_id", eventId));
     setRegistrationOpen(!registrationOpen);
   };
   const handleToggleRsvp = async () => {
-    await executeDbAction(supabase.from("raffle_config").update({ rsvp_open: !rsvpOpen }).eq("id", 1));
+    await executeDbAction(supabase.from("raffle_config").update({ rsvp_open: !rsvpOpen }).eq("event_id", eventId));
     setRsvpOpen(!rsvpOpen);
   };
   const handleSaveSchedule = async () => {
     const { error } = await supabase.from("raffle_config").update({
         start_time: schedule.start ? new Date(schedule.start).toISOString() : null,
         end_time: schedule.end ? new Date(schedule.end).toISOString() : null
-    }).eq("id", 1);
+    }).eq("event_id", eventId);
     alert(error ? "❌ Error: " + error.message : "✅ Schedule Saved!");
   };
+
   const handleUpdateBackgrounds = async () => {
     setUploadingBg(true);
     try {
         const uploadFile = async (file: File | null, prefix: string) => {
             if (!file) return null;
-            const name = `${prefix}-${Date.now()}.${file.name.split('.').pop()}`;
+            const name = `event-${eventId}-${prefix}-${Date.now()}.${file.name.split('.').pop()}`;
             await supabase.storage.from('backgrounds').upload(name, file);
             return supabase.storage.from('backgrounds').getPublicUrl(name).data.publicUrl;
         };
         const newLand = await uploadFile(files.landscape, 'landscape') || bgUrls.landscape;
         const newPort = await uploadFile(files.portrait, 'portrait') || bgUrls.portrait;
-        await supabase.from("raffle_config").update({ landscape_url: newLand, portrait_url: newPort }).eq("id", 1);
-        await supabase.channel("bg_sync").send({ type: "broadcast", event: "apply_bg", payload: { landscape: newLand, portrait: newPort } });
+        
+        await supabase.from("raffle_config").update({ landscape_url: newLand, portrait_url: newPort }).eq("event_id", eventId);
+        
+        // Broadcast the background change strictly to this event's channel!
+        await supabase.channel(`bg_sync_${eventId}`).send({ type: "broadcast", event: "apply_bg", payload: { landscape: newLand, portrait: newPort } });
+        
         setBgUrls({ landscape: newLand, portrait: newPort });
         setFiles({ portrait: null, landscape: null });
         alert("✅ Backgrounds Applied!");
@@ -174,16 +207,18 @@ export default function AdminPage() {
 
   const uniqueReferrals = ["All", ...Array.from(new Set([...rsvps, ...guests].map((r: any) => r.referral).filter(Boolean))) as string[]];
 
+  if (invalidEvent) return <div className="fixed inset-0 bg-black flex items-center justify-center text-red-500 text-4xl font-black uppercase">Event Not Found</div>;
+
   if (!isAuthenticated) {
     return (
       <div className="fixed inset-0 min-h-screen bg-gray-900 flex items-center justify-center p-4 font-sans z-[999]">
         <form onSubmit={handleLogin} className="bg-white p-8 rounded-[2.5rem] shadow-2xl max-w-sm w-full text-center border-8 border-blue-500 animate-in zoom-in duration-300">
           <div className="text-6xl mb-4 animate-bounce">🔐</div>
-          <h1 className="text-2xl font-black text-gray-800 uppercase mb-2 leading-none">Restricted Access</h1>
+          <h1 className="text-2xl font-black text-gray-800 uppercase mb-2 leading-none">Admin Access</h1>
           <p className="text-gray-500 font-bold text-xs mb-6">Enter the host passcode to continue.</p>
           {authError && <div className="bg-red-50 text-red-600 border-2 border-red-200 p-2 rounded-xl font-black text-xs mb-4 animate-bounce">{authError}</div>}
           <input type="password" value={passcodeInput} onChange={(e) => setPasscodeInput(e.target.value)} className="w-full text-center text-3xl font-black p-4 bg-gray-50 border-2 border-gray-200 rounded-2xl mb-4 focus:border-blue-500 outline-none uppercase tracking-widest placeholder:text-gray-300" placeholder="•••••" />
-          <button type="submit" className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-sm rounded-2xl uppercase transition-all active:scale-95 shadow-xl">Unlock Dashboard</button>
+          <button type="submit" className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-sm rounded-2xl uppercase transition-all active:scale-95 shadow-xl">Unlock Admin</button>
         </form>
       </div>
     );
@@ -213,15 +248,13 @@ export default function AdminPage() {
         <div className="bg-white/95 backdrop-blur-sm rounded-3xl shadow-xl p-6 md:p-8 border-2 border-gray-200 min-h-[400px]">
             {loading ? <p className="text-center text-gray-500 font-bold py-10">Loading Data...</p> : (
                 <>
+                    {/* SAAS INJECTION: We pass eventId into the sub-components so they know which DB rows to modify! */}
                     {activeTab === "status" && <StatusTab registrationOpen={registrationOpen} rsvpOpen={rsvpOpen} schedule={schedule} setSchedule={setSchedule} handleToggleRegistration={handleToggleRegistration} handleToggleRsvp={handleToggleRsvp} handleSaveSchedule={handleSaveSchedule} />}
-                    {activeTab === "rsvps" && <RsvpsTab rsvps={rsvps} fetchData={fetchData} executeDbAction={executeDbAction} uniqueReferrals={uniqueReferrals} />}
+                    {activeTab === "rsvps" && <RsvpsTab eventId={eventId} rsvps={rsvps} fetchData={fetchData} executeDbAction={executeDbAction} uniqueReferrals={uniqueReferrals} />}
                     {activeTab === "guests" && <GuestsTab guests={guests} stats={stats} fetchData={fetchData} executeDbAction={executeDbAction} uniqueReferrals={uniqueReferrals} />}
-                    {activeTab === "prizes" && <PrizesTab prizes={prizes} setPrizes={setPrizes} executeDbAction={executeDbAction} uniqueReferrals={uniqueReferrals} />}
-                    
-                    {/* FIXED: Drop in the Games tab */}
-                    {activeTab === "games" && <GamesTab games={games} executeDbAction={executeDbAction} />}
-                    
-                    {activeTab === "suppliers" && <SuppliersTab suppliers={suppliers} executeDbAction={executeDbAction} />}
+                    {activeTab === "prizes" && <PrizesTab eventId={eventId} prizes={prizes} setPrizes={setPrizes} executeDbAction={executeDbAction} uniqueReferrals={uniqueReferrals} />}
+                    {activeTab === "games" && <GamesTab eventId={eventId} games={games} executeDbAction={executeDbAction} />}
+                    {activeTab === "suppliers" && <SuppliersTab eventId={eventId} suppliers={suppliers} executeDbAction={executeDbAction} />}
                     {activeTab === "backgrounds" && <BackgroundsTab bgUrls={bgUrls} files={files} setFiles={setFiles} handleUpdateBackgrounds={handleUpdateBackgrounds} uploadingBg={uploadingBg} />}
                 </>
             )}
