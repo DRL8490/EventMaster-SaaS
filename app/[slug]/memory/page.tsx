@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
-import html2canvas from "html2canvas";
+import { toPng } from "html-to-image";
 
 export default function MemoryPage() {
   const params = useParams();
@@ -20,50 +20,34 @@ export default function MemoryPage() {
   
   const [loading, setLoading] = useState(true);
 
-  // THE ULTIMATE SCREENSHOT FIX: Base64 Conversion Bypass
+  // THE ULTIMATE SCREENSHOT FIX: html-to-image with Cache Busting
   const captureAndDownload = async (elementId: string, filename: string) => {
     const element = document.getElementById(elementId);
     if (!element) return;
 
-    // Show a quick loading state to the user if they click multiple times
+    // Show a quick loading state
     const btn = element.querySelector('button');
     const oldIcon = btn?.innerText;
     if (btn) btn.innerText = "⏳";
 
     try {
-      // 1. Bypass Browser Security (Convert all images to trusted Base64)
-      const images = Array.from(element.getElementsByTagName('img'));
-      const originalSrcs = images.map(img => img.src);
-
-      await Promise.all(images.map(async (img) => {
-        const res = await fetch(img.src);
-        const blob = await res.blob();
-        return new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            img.src = reader.result as string;
-            resolve(true);
-          };
-          reader.readAsDataURL(blob);
-        });
-      }));
-
-      // 2. Take the perfect screenshot!
-      const canvas = await html2canvas(element, { 
-          useCORS: true, 
-          backgroundColor: null,
-          scale: 3 // Keeps it crispy and high-res
+      // html-to-image handles modern CSS and Supabase CORS natively
+      const dataUrl = await toPng(element, {
+          cacheBust: true, // THIS IS THE MAGIC BULLET! Bypasses the browser cache block.
+          pixelRatio: 3, // Keeps the downloaded image super crisp
+          filter: (node) => {
+              // Hide the download buttons from the final screenshot
+              const el = node as HTMLElement;
+              if (el?.hasAttribute && el.hasAttribute('data-ignore')) {
+                  return false;
+              }
+              return true;
+          }
       });
-      
-      // 3. Put the original image URLs back
-      images.forEach((img, index) => {
-        img.src = originalSrcs[index];
-      });
-      
-      // 4. Trigger the download
-      const image = canvas.toDataURL("image/png");
+
+      // Trigger the download
       const link = document.createElement("a");
-      link.href = image;
+      link.href = dataUrl;
       link.download = filename;
       document.body.appendChild(link);
       link.click();
@@ -75,6 +59,24 @@ export default function MemoryPage() {
     } finally {
       // Restore the button icon
       if (btn && oldIcon) btn.innerText = oldIcon;
+    }
+  };
+
+  // Keep for raw gallery uploads
+  const handleRawDownload = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      window.open(url, '_blank'); 
     }
   };
 
@@ -163,7 +165,7 @@ export default function MemoryPage() {
                         <div className="relative overflow-hidden rounded-xl border-2 border-gray-100 bg-white">
                             <img src={w.proof_url} alt={w.nickname} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
                             
-                            <div data-html2canvas-ignore="true" className="absolute top-2 right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                            <div data-ignore="true" className="absolute top-2 right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                                 <button 
                                     onClick={() => captureAndDownload(`raffle-card-${w.id}`, `${w.nickname}-Winner.png`)}
                                     className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm active:scale-90 shadow-lg text-xs md:text-sm"
@@ -185,7 +187,7 @@ export default function MemoryPage() {
                     <div id={`game-card-${g.id}`} key={`game-${g.id}`} className="bg-white p-2 md:p-3 rounded-2xl shadow-xl transform -rotate-2 hover:rotate-0 transition-all group relative">
                         <div className="relative overflow-hidden rounded-xl border-2 border-gray-100 bg-white">
                             <img src={g.proof_url} alt={g.name} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
-                            <div data-html2canvas-ignore="true" className="absolute top-2 right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                            <div data-ignore="true" className="absolute top-2 right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                                 <button 
                                     onClick={() => captureAndDownload(`game-card-${g.id}`, `${g.name}-Winner.png`)}
                                     className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm active:scale-90 shadow-lg text-xs md:text-sm"
@@ -204,7 +206,7 @@ export default function MemoryPage() {
             </div>
         </div>
 
-        {/* SECTION 2: LIVE GUEST GALLERY (UPGRADED TO FULL SCREENSHOT DOWNLOAD) */}
+        {/* SECTION 2: LIVE GUEST GALLERY (RAW UPLOADS) */}
         <div className="space-y-6 pt-8">
             <div className="flex items-end justify-between border-b-2 border-purple-500/30 pb-2">
                 <h2 className="text-2xl font-black text-purple-400 uppercase tracking-widest">📸 Live Gallery</h2>
@@ -221,13 +223,12 @@ export default function MemoryPage() {
             ) : (
                 <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4 pt-4">
                     {guestUploads.map((photo) => (
-                        // 1. ADDED ID TO CAPTURE THE LIVE PHOTO WITH THE NAMEPLATE
-                        <div id={`live-card-${photo.id}`} key={`photo-${photo.id}`} className="break-inside-avoid relative group rounded-2xl overflow-hidden shadow-lg border border-gray-700 bg-gray-800">
+                        <div key={`photo-${photo.id}`} className="break-inside-avoid relative group rounded-2xl overflow-hidden shadow-lg border border-gray-700 bg-gray-800">
                             <img src={photo.photo_url} alt="Guest Upload" className="w-full h-auto object-cover block" loading="lazy" crossOrigin="anonymous" />
                             
-                            <div data-html2canvas-ignore="true" className="absolute top-2 right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
+                            <div className="absolute top-2 right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
                                 <button 
-                                    onClick={() => captureAndDownload(`live-card-${photo.id}`, `PartyMaster-${photo.id}.png`)}
+                                    onClick={() => handleRawDownload(photo.photo_url, `PartyMaster-${photo.id}.jpg`)}
                                     className="bg-black/50 hover:bg-black/70 text-white p-2 md:p-2.5 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-xs md:text-sm"
                                     title="Download Photo"
                                 >
@@ -251,12 +252,12 @@ export default function MemoryPage() {
             <h2 className="text-2xl font-black text-blue-400 uppercase tracking-widest border-b-2 border-blue-500/30 pb-2">🫧 The Party Squad</h2>
             <div className="flex flex-wrap justify-center gap-5 md:gap-8 pt-4">
                 {allGuests.map(g => (
-                    <div id={`bubble-card-${g.id}`} key={`guest-${g.id}`} className="flex flex-col items-center w-20 md:w-24 group relative p-1">
+                    <div id={`bubble-card-${g.id}`} key={`guest-${g.id}`} className="flex flex-col items-center w-20 md:w-24 group relative p-1 bg-transparent">
                         <div className="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden border-4 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.4)] bg-white relative">
                             <img src={g.photo_url} alt={g.nickname} className="w-full h-full object-cover" crossOrigin="anonymous" />
                         </div>
                         
-                        <div data-html2canvas-ignore="true" className="absolute -top-1 right-0 md:-right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
+                        <div data-ignore="true" className="absolute -top-1 right-0 md:-right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
                             <button 
                                 onClick={() => captureAndDownload(`bubble-card-${g.id}`, `${g.nickname}-Avatar.png`)}
                                 className="bg-black/60 hover:bg-black/80 text-white p-1.5 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-[10px]"
