@@ -2,7 +2,8 @@
 import React, { useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
-export default function GuestsTab({ guests, fetchData, executeDbAction, stats, uniqueReferrals }: any) {
+// SAAS FIX: Added eventId to the props
+export default function GuestsTab({ eventId, guests, fetchData, executeDbAction, stats, uniqueReferrals }: any) {
   const [guestFilter, setGuestFilter] = useState("All");
   const [guestReferralFilter, setGuestReferralFilter] = useState("All"); 
   
@@ -77,7 +78,8 @@ export default function GuestsTab({ guests, fetchData, executeDbAction, stats, u
                             <td className="p-4"><img src={g.photo_url} alt="Selfie" className="w-16 h-16 rounded-xl object-cover border-2 shadow-sm" /></td>
                             <td className="p-4"><p className="font-black text-blue-600 text-xl">{g.nickname}</p><p className="font-medium text-gray-500 text-sm">{g.full_name}</p></td>
                             <td className="p-4 text-center">
-                                <select value={g.category || "Adults"} onChange={(e) => executeDbAction(supabase.from("guests").update({ category: e.target.value }).eq("id", g.id))} className="bg-gray-100 border-2 border-gray-200 hover:border-blue-400 rounded-lg p-2 text-xs font-black uppercase text-gray-700 outline-none cursor-pointer transition-all">
+                                {/* SAAS LOCK: Added eventId check to category update */}
+                                <select value={g.category || "Adults"} onChange={(e) => executeDbAction(supabase.from("guests").update({ category: e.target.value }).eq("id", g.id).eq("event_id", eventId))} className="bg-gray-100 border-2 border-gray-200 hover:border-blue-400 rounded-lg p-2 text-xs font-black uppercase text-gray-700 outline-none cursor-pointer transition-all">
                                     <option value="Adults">Adults</option>
                                     <option value="Teens">Teens</option>
                                     <option value="Kids">Kids</option>
@@ -85,10 +87,10 @@ export default function GuestsTab({ guests, fetchData, executeDbAction, stats, u
                             </td>
                             <td className="p-4 text-center"><span className="font-bold text-gray-600 bg-purple-50 px-3 py-1 rounded-lg border border-purple-100">{g.referral || "None"}</span></td>
                             <td className="p-4 text-center">
-                                {/* UPGRADED: The Status badge is now a powerful Admin Dropdown! */}
+                                {/* SAAS LOCK: Added eventId check to status update */}
                                 <select 
                                     value={g.status || "eligible"} 
-                                    onChange={(e) => executeDbAction(supabase.from("guests").update({ status: e.target.value }).eq("id", g.id))} 
+                                    onChange={(e) => executeDbAction(supabase.from("guests").update({ status: e.target.value }).eq("id", g.id).eq("event_id", eventId))} 
                                     className={`font-black uppercase px-3 py-1 rounded-full text-xs outline-none cursor-pointer border ${g.status === "won" ? "bg-purple-100 text-purple-700 border-purple-200" : g.status === "ineligible" ? "bg-gray-200 text-gray-600 border-gray-300" : "bg-green-100 text-green-700 border-green-200"}`}
                                 >
                                     <option value="eligible">Eligible</option>
@@ -96,7 +98,10 @@ export default function GuestsTab({ guests, fetchData, executeDbAction, stats, u
                                     <option value="won">🏆 Winner</option>
                                 </select>
                             </td>
-                            <td className="p-4 text-center"><button onClick={() => window.confirm(`Delete ${g.nickname}?`) && executeDbAction(supabase.from("guests").delete().eq("id", g.id))} className="text-red-600 font-bold text-sm bg-red-50 hover:bg-red-500 hover:text-white px-4 py-2 rounded-lg transition-all">🗑️ Delete</button></td>
+                            <td className="p-4 text-center">
+                                {/* SAAS LOCK: Added eventId check to delete */}
+                                <button onClick={() => window.confirm(`Delete ${g.nickname}?`) && executeDbAction(supabase.from("guests").delete().eq("id", g.id).eq("event_id", eventId))} className="text-red-600 font-bold text-sm bg-red-50 hover:bg-red-500 hover:text-white px-4 py-2 rounded-lg transition-all">🗑️ Delete</button>
+                            </td>
                         </tr>
                     ))}
                 </tbody>
