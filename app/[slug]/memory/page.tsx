@@ -20,7 +20,7 @@ export default function MemoryPage() {
   
   const [loading, setLoading] = useState(true);
 
-// FESTIVE WATERMARK COMPONENTS (Smart, Auto-Scaling, Multi-Line)
+  // FESTIVE WATERMARK COMPONENTS (Smart, Auto-Scaling, Multi-Line)
   const LargeWatermark = () => {
     // Dynamically shrink the font if the event name is super long
     const textSize = eventName.length > 20 ? "text-[6px] md:text-[8px]" : "text-[8px] md:text-[10px]";
@@ -42,7 +42,8 @@ export default function MemoryPage() {
       </div>
     );
   };
-// THE ULTIMATE MOBILE FIX: Cache-Busting Fetch + Base64 + Double Render + RAM Saver
+
+  // THE ULTIMATE MOBILE FIX: Cache-Busting Fetch + Base64 + Double Render + RAM Saver
   const captureAndDownload = async (elementId: string, filename: string) => {
     const element = document.getElementById(elementId);
     if (!element) return;
@@ -205,7 +206,7 @@ export default function MemoryPage() {
 
                             <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                                 <button 
-                                    onClick={() => captureAndDownload(`raffle-card-${w.id}`, `${eventSlug}-Memory-${photo.id}.png`)}
+                                    onClick={() => captureAndDownload(`raffle-card-${w.id}`, `${eventSlug}-${w.nickname}-Winner.png`)}
                                     className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm active:scale-90 shadow-lg text-xs md:text-sm"
                                     title="Download Card"
                                 >
@@ -230,7 +231,7 @@ export default function MemoryPage() {
 
                             <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                                 <button 
-                                    onClick={() => captureAndDownload(`game-card-${g.id}`, `${eventSlug}-Memory-${photo.id}.png`)}
+                                    onClick={() => captureAndDownload(`game-card-${g.id}`, `${eventSlug}-${g.name}-Winner.png`)}
                                     className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm active:scale-90 shadow-lg text-xs md:text-sm"
                                     title="Download Card"
                                 >
@@ -290,7 +291,7 @@ export default function MemoryPage() {
             )}
         </div>
 
-{/* SECTION 3: THE BUBBLE SQUAD (FIXED PADDING FOR CUTOFF) */}
+        {/* SECTION 3: THE BUBBLE SQUAD */}
         <div className="space-y-6 pt-8">
             <h2 className="text-2xl font-black text-blue-400 uppercase tracking-widest border-b-2 border-blue-500/30 pb-2">🫧 The Party Squad</h2>
             <div className="flex flex-wrap justify-center gap-2 md:gap-4 pt-4">
@@ -298,7 +299,6 @@ export default function MemoryPage() {
                     <div id={`bubble-card-${g.id}`} key={`guest-${g.id}`} className="flex flex-col items-center w-auto group relative p-4 pt-8 pr-8 bg-transparent">
                         
                         <div className="relative">
-                            {/* DOUBLED THE SIZE: w-32 h-32 (Mobile) and w-40 h-40 (Desktop) */}
                             <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.5)] bg-white relative">
                                 <img src={g.photo_url} alt={g.nickname} className="w-full h-full object-cover" crossOrigin="anonymous" />
                             </div>
@@ -308,7 +308,7 @@ export default function MemoryPage() {
 
                         <div data-ignore="true" className="absolute top-2 left-0 md:-left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
                             <button 
-                                onClick={() => captureAndDownload(`bubble-card-${g.id}`, `${eventSlug}-Memory-${photo.id}.png`)}
+                                onClick={() => captureAndDownload(`bubble-card-${g.id}`, `${eventSlug}-${g.nickname}-Avatar.png`)}
                                 className="bg-black/60 hover:bg-black/80 text-white p-2 md:p-3 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-xs"
                                 title="Download Avatar"
                             >
@@ -316,12 +316,12 @@ export default function MemoryPage() {
                             </button>
                         </div>
 
-                        {/* Doubled the text width container so longer names fit under the giant bubble */}
                         <p className="mt-3 text-center text-xs md:text-sm font-black text-gray-300 uppercase tracking-wider truncate w-32 md:w-40">
                             {g.nickname}
                         </p>
                     </div>
-                ))}            </div>
+                ))}
+            </div>
             {allGuests.length === 0 && <p className="text-center text-gray-500 font-bold">No guests have arrived yet!</p>}
         </div>
 
