@@ -20,19 +20,47 @@ export default function MemoryPage() {
   
   const [loading, setLoading] = useState(true);
 
-  // NEW: THE "SCREENSHOT" DOWNLOAD FUNCTION
+  // THE ULTIMATE SCREENSHOT FIX: Base64 Conversion Bypass
   const captureAndDownload = async (elementId: string, filename: string) => {
     const element = document.getElementById(elementId);
     if (!element) return;
 
+    // Show a quick loading state to the user if they click multiple times
+    const btn = element.querySelector('button');
+    const oldIcon = btn?.innerText;
+    if (btn) btn.innerText = "⏳";
+
     try {
-      // useCORS is critical here so it can read the Supabase images!
+      // 1. Bypass Browser Security (Convert all images to trusted Base64)
+      const images = Array.from(element.getElementsByTagName('img'));
+      const originalSrcs = images.map(img => img.src);
+
+      await Promise.all(images.map(async (img) => {
+        const res = await fetch(img.src);
+        const blob = await res.blob();
+        return new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            img.src = reader.result as string;
+            resolve(true);
+          };
+          reader.readAsDataURL(blob);
+        });
+      }));
+
+      // 2. Take the perfect screenshot!
       const canvas = await html2canvas(element, { 
           useCORS: true, 
-          backgroundColor: null, // Keeps rounded corners transparent
-          scale: 3 // High resolution for Retina displays
+          backgroundColor: null,
+          scale: 3 // Keeps it crispy and high-res
       });
       
+      // 3. Put the original image URLs back
+      images.forEach((img, index) => {
+        img.src = originalSrcs[index];
+      });
+      
+      // 4. Trigger the download
       const image = canvas.toDataURL("image/png");
       const link = document.createElement("a");
       link.href = image;
@@ -40,27 +68,13 @@ export default function MemoryPage() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+
     } catch (error) {
       console.error("Error capturing image:", error);
       alert("Oops! Couldn't capture the styled image. Try again!");
-    }
-  };
-
-  // KEEP THE OLD FUNCTION FOR THE RAW GALLERY UPLOADS
-  const handleRawDownload = async (url: string, filename: string) => {
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (error) {
-      window.open(url, '_blank'); 
+    } finally {
+      // Restore the button icon
+      if (btn && oldIcon) btn.innerText = oldIcon;
     }
   };
 
@@ -145,12 +159,10 @@ export default function MemoryPage() {
                 
                 {/* RAFFLE WINNERS */}
                 {raffleWinners.map(w => (
-                    // 1. ADDED ID TO CAPTURE THE WHOLE CARD
                     <div id={`raffle-card-${w.id}`} key={`raffle-${w.id}`} className="bg-white p-2 md:p-3 rounded-2xl shadow-xl transform rotate-2 hover:rotate-0 transition-all group relative">
-                        <div className="relative overflow-hidden rounded-xl border-2 border-gray-100">
+                        <div className="relative overflow-hidden rounded-xl border-2 border-gray-100 bg-white">
                             <img src={w.proof_url} alt={w.nickname} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
                             
-                            {/* 2. ADDED DATA-HTML2CANVAS-IGNORE SO THE BUTTON DOESN'T SHOW IN THE SCREENSHOT */}
                             <div data-html2canvas-ignore="true" className="absolute top-2 right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                                 <button 
                                     onClick={() => captureAndDownload(`raffle-card-${w.id}`, `${w.nickname}-Winner.png`)}
@@ -161,7 +173,7 @@ export default function MemoryPage() {
                                 </button>
                             </div>
                         </div>
-                        <div className="pt-3 pb-1 text-center">
+                        <div className="pt-3 pb-1 text-center bg-white">
                             <p className="text-gray-900 font-black uppercase text-sm md:text-base leading-tight truncate">{w.nickname}</p>
                             <p className="text-blue-600 font-bold text-[10px] md:text-xs uppercase mt-0.5 truncate">{w.prize_won}</p>
                         </div>
@@ -171,7 +183,7 @@ export default function MemoryPage() {
                 {/* GAME WINNERS */}
                 {gameWinners.map(g => (
                     <div id={`game-card-${g.id}`} key={`game-${g.id}`} className="bg-white p-2 md:p-3 rounded-2xl shadow-xl transform -rotate-2 hover:rotate-0 transition-all group relative">
-                        <div className="relative overflow-hidden rounded-xl border-2 border-gray-100">
+                        <div className="relative overflow-hidden rounded-xl border-2 border-gray-100 bg-white">
                             <img src={g.proof_url} alt={g.name} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
                             <div data-html2canvas-ignore="true" className="absolute top-2 right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                                 <button 
@@ -183,7 +195,7 @@ export default function MemoryPage() {
                                 </button>
                             </div>
                         </div>
-                        <div className="pt-3 pb-1 text-center">
+                        <div className="pt-3 pb-1 text-center bg-white">
                             <p className="text-gray-900 font-black uppercase text-sm md:text-base leading-tight truncate px-1">{g.name}</p>
                             <p className="text-green-600 font-bold text-[10px] md:text-xs uppercase mt-0.5">Game Winner</p>
                         </div>
@@ -192,7 +204,7 @@ export default function MemoryPage() {
             </div>
         </div>
 
-        {/* SECTION 2: LIVE GUEST GALLERY (STAYS AS RAW UPLOADS) */}
+        {/* SECTION 2: LIVE GUEST GALLERY (UPGRADED TO FULL SCREENSHOT DOWNLOAD) */}
         <div className="space-y-6 pt-8">
             <div className="flex items-end justify-between border-b-2 border-purple-500/30 pb-2">
                 <h2 className="text-2xl font-black text-purple-400 uppercase tracking-widest">📸 Live Gallery</h2>
@@ -209,12 +221,13 @@ export default function MemoryPage() {
             ) : (
                 <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4 pt-4">
                     {guestUploads.map((photo) => (
-                        <div key={`photo-${photo.id}`} className="break-inside-avoid relative group rounded-2xl overflow-hidden shadow-lg border border-gray-700 bg-gray-800">
-                            <img src={photo.photo_url} alt="Guest Upload" className="w-full h-auto object-cover" loading="lazy" crossOrigin="anonymous" />
+                        // 1. ADDED ID TO CAPTURE THE LIVE PHOTO WITH THE NAMEPLATE
+                        <div id={`live-card-${photo.id}`} key={`photo-${photo.id}`} className="break-inside-avoid relative group rounded-2xl overflow-hidden shadow-lg border border-gray-700 bg-gray-800">
+                            <img src={photo.photo_url} alt="Guest Upload" className="w-full h-auto object-cover block" loading="lazy" crossOrigin="anonymous" />
                             
-                            <div className="absolute top-2 right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
+                            <div data-html2canvas-ignore="true" className="absolute top-2 right-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
                                 <button 
-                                    onClick={() => handleRawDownload(photo.photo_url, `PartyMaster-${photo.id}.jpg`)}
+                                    onClick={() => captureAndDownload(`live-card-${photo.id}`, `PartyMaster-${photo.id}.png`)}
                                     className="bg-black/50 hover:bg-black/70 text-white p-2 md:p-2.5 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-xs md:text-sm"
                                     title="Download Photo"
                                 >
@@ -222,7 +235,7 @@ export default function MemoryPage() {
                                 </button>
                             </div>
 
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 flex items-end transition-all duration-300 opacity-100 translate-y-0 md:opacity-0 md:translate-y-2 md:group-hover:opacity-100 md:group-hover:translate-y-0">
+                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 flex items-end transition-all duration-300">
                                 <p className="text-white font-black text-xs md:text-sm uppercase tracking-widest truncate drop-shadow-md pb-1">
                                     {photo.uploader_name || "Guest"}
                                 </p>
@@ -233,12 +246,11 @@ export default function MemoryPage() {
             )}
         </div>
 
-        {/* SECTION 3: THE BUBBLE SQUAD (NOW DOWNLOADS THE FULL AVATAR+NAME) */}
+        {/* SECTION 3: THE BUBBLE SQUAD */}
         <div className="space-y-6 pt-8">
             <h2 className="text-2xl font-black text-blue-400 uppercase tracking-widest border-b-2 border-blue-500/30 pb-2">🫧 The Party Squad</h2>
             <div className="flex flex-wrap justify-center gap-5 md:gap-8 pt-4">
                 {allGuests.map(g => (
-                    // WRAPPED EVERYTHING IN A DIV TO SCREENSHOT THE BUBBLE AND THE TEXT TOGETHER
                     <div id={`bubble-card-${g.id}`} key={`guest-${g.id}`} className="flex flex-col items-center w-20 md:w-24 group relative p-1">
                         <div className="w-16 h-16 md:w-20 md:h-20 rounded-full overflow-hidden border-4 border-blue-400 shadow-[0_0_15px_rgba(59,130,246,0.4)] bg-white relative">
                             <img src={g.photo_url} alt={g.nickname} className="w-full h-full object-cover" crossOrigin="anonymous" />
