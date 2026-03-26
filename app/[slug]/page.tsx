@@ -194,23 +194,23 @@ export default function ProjectorPage() {
               
               {/* QR 1: Winners & Bubbles (Left Side) */}
               <div className="flex flex-col items-center justify-center bg-gray-50 p-8 md:p-10 rounded-3xl border-4 border-gray-200 shadow-inner w-full md:w-1/2">
-                  <h2 className="text-3xl md:text-5xl font-black text-gray-800 uppercase tracking-widest mb-4">Winners QR</h2>
+                  <h2 className="text-3xl md:text-5xl font-black text-gray-800 uppercase tracking-widest mb-4">Memory Gallery</h2>
                   <p className="text-lg font-bold text-gray-500 uppercase tracking-widest mb-8">See all winners & guests!</p>
                   <img 
-                      /* DYNAMIC URL GENERATOR: Injects the slug into the QR code */
                       src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/${eventSlug}/memory` : '')}`} 
                       alt="Memory QR Code" 
                       className="w-64 h-64 md:w-96 md:h-96 rounded-2xl shadow-xl border-8 border-white transition-transform hover:scale-105" 
                   />
               </div>
 
-              {/* QR 2: Google Drive (Right Side) */}
+              {/* QR 2: NATIVE SAAS UPLOAD PORTAL (Right Side) */}
               <div className="flex flex-col items-center justify-center bg-blue-50 p-8 md:p-10 rounded-3xl border-4 border-blue-200 shadow-inner w-full md:w-1/2">
-                  <h2 className="text-3xl md:text-5xl font-black text-blue-700 uppercase tracking-widest mb-4 whitespace-nowrap">Download / Upload</h2>
-                  <p className="text-lg font-bold text-blue-500 uppercase tracking-widest mb-8">Share raw photos & videos!</p>
+                  <h2 className="text-3xl md:text-5xl font-black text-blue-700 uppercase tracking-widest mb-4 whitespace-nowrap">Photo Drop</h2>
+                  <p className="text-lg font-bold text-blue-500 uppercase tracking-widest mb-8">Share your favorite moments!</p>
                   <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent('https://drive.google.com/drive/folders/1i1ItVCpTjg-GVtwEbRLv9RJjAcgilGgS?usp=sharing')}`} 
-                      alt="Drive QR Code" 
+                      /* SAAS MAGIC: Automatically routes guests to your Native Photo Drop portal! */
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/${eventSlug}/upload` : '')}`} 
+                      alt="Upload QR Code" 
                       className="w-64 h-64 md:w-96 md:h-96 rounded-2xl shadow-xl border-8 border-white transition-transform hover:scale-105" 
                   />
               </div>
