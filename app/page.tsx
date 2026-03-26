@@ -18,6 +18,7 @@ export default function SuperAdminDashboard() {
   const [newName, setNewName] = useState("");
   const [newSlug, setNewSlug] = useState("");
   const [newPasscode, setNewPasscode] = useState("");
+  const [newClientEmail, setNewClientEmail] = useState(""); // NEW: Client Email State
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState("");
 
@@ -61,9 +62,10 @@ export default function SuperAdminDashboard() {
     setCreateError("");
 
     try {
+      // NEW: Added client_email to the insert payload
       const { data: newEvent, error: eventError } = await supabase
         .from("events")
-        .insert([{ name: newName, slug: newSlug, passcode: newPasscode }])
+        .insert([{ name: newName, slug: newSlug, passcode: newPasscode, client_email: newClientEmail || null }])
         .select()
         .single();
 
@@ -75,26 +77,30 @@ export default function SuperAdminDashboard() {
       const { error: configError } = await supabase.from("raffle_config").insert([{ event_id: newEvent.id }]);
       if (configError) throw configError;
 
-      setNewName("");
-      setNewSlug("");
-      setNewPasscode("");
-      fetchEvents();
-      
-    } catch (error: any) {
-      setCreateError(error.message);
-    } finally {
-      setIsCreating(false);
-    }
-  };
+// TRIGGER EMAIL AUTOMATION
+      const emailResponse = await fetch('/api/send-event-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          eventName: newName,
+          eventSlug: newSlug,
+          clientEmail: newClientEmail,
+          passcode: newPasscode
+        }),
+      });
 
-  // --- NEW: THE DEEP CLEAN DELETE FUNCTION ---
+      if (!emailResponse.ok) {
+        console.error("Database succeeded, but Email failed to send.");
+      }
+
   const handleDeleteEvent = async (eventId: number, eventName: string) => {
     if (!window.confirm(`🚨 WARNING: Are you sure you want to completely delete "${eventName}"?`)) return;
     if (!window.confirm(`FINAL CHECK: This will permanently erase ALL guests, winners, settings, and RSVPs for this event. This CANNOT be undone. Proceed?`)) return;
 
     try {
       setLoading(true);
-      // Delete all child records first to prevent Foreign Key constraint errors
       await supabase.from("rsvps").delete().eq("event_id", eventId);
       await supabase.from("guests").delete().eq("event_id", eventId);
       await supabase.from("prizes").delete().eq("event_id", eventId);
@@ -102,7 +108,6 @@ export default function SuperAdminDashboard() {
       await supabase.from("suppliers").delete().eq("event_id", eventId);
       await supabase.from("raffle_config").delete().eq("event_id", eventId);
       
-      // Finally, delete the event itself
       const { error } = await supabase.from("events").delete().eq("id", eventId);
       if (error) throw error;
       
@@ -113,7 +118,6 @@ export default function SuperAdminDashboard() {
     }
   };
 
-  // --- NEW: THE MASTER REPORT COMPILER ---
   const handleCompileData = async (eventId: number, eventName: string) => {
     setCompilingId(eventId);
     try {
@@ -122,7 +126,6 @@ export default function SuperAdminDashboard() {
       
       let csvContent = "--- EVENT MASTER POST-EVENT REPORT ---\n\n";
       
-      // 1. Guest & Winners Section
       csvContent += "--- GUEST REGISTRY & WINNERS ---\n";
       csvContent += "Name,Nickname,Category,Status,Prize Won,Photo Link\n";
       if (guests && guests.length > 0) {
@@ -130,7 +133,6 @@ export default function SuperAdminDashboard() {
           const name = `"${g.full_name || ''}"`;
           const nickname = `"${g.nickname || ''}"`;
           const prize = `"${g.prize_won || ''}"`;
-          // If they won, show the proof photo, otherwise show their check-in selfie
           const photo = `"${g.proof_url || g.photo_url || ''}"`; 
           csvContent += `${name},${nickname},${g.category},${g.status},${prize},${photo}\n`;
         });
@@ -138,7 +140,6 @@ export default function SuperAdminDashboard() {
         csvContent += "No guests checked in.\n";
       }
       
-      // 2. Games Section
       csvContent += "\n--- GAME RESULTS ---\n";
       csvContent += "Game Name,Status,Winner Photo Link\n";
       if (games && games.length > 0) {
@@ -151,7 +152,6 @@ export default function SuperAdminDashboard() {
         csvContent += "No games played.\n";
       }
 
-      // 3. Trigger Download
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -211,6 +211,11 @@ export default function SuperAdminDashboard() {
               </div>
 
               <div>
+                <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1 ml-1">Client Email</label>
+                <input required type="email" placeholder="client@email.com" value={newClientEmail} onChange={(e) => setNewClientEmail(e.target.value)} className="w-full p-4 bg-gray-50 border-2 border-gray-200 rounded-2xl focus:border-purple-500 outline-none transition-all font-bold text-gray-800" />
+              </div>
+
+              <div>
                 <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-1 ml-1">URL Slug</label>
                 <div className="flex items-center bg-gray-50 border-2 border-gray-200 rounded-2xl focus-within:border-purple-500 transition-all overflow-hidden">
                   <span className="pl-4 text-gray-400 font-bold text-sm">site.com/</span>
@@ -249,12 +254,20 @@ export default function SuperAdminDashboard() {
                     </div>
 
                     <h3 className="text-xl font-black text-gray-900 mb-1 pr-12 truncate">{event.name}</h3>
-                    <p className="text-gray-500 font-bold text-sm mb-4">/{event.slug}</p>
+                    
+                    {/* NEW: Full Vercel URL Display */}
+                    <a href={`https://event-master-saas.vercel.app/${event.slug}`} target="_blank" rel="noreferrer" className="text-blue-500 hover:text-blue-700 font-bold text-xs mb-4 block truncate transition-colors">
+                      https://event-master-saas.vercel.app/{event.slug}
+                    </a>
                     
                     <div className="bg-gray-50 p-3 rounded-xl mb-4 border border-gray-200">
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Passcode</p>
                       <p className="font-mono font-bold text-gray-700 tracking-widest">{event.passcode}</p>
                     </div>
+
+                    {event.client_email && (
+                      <p className="text-[10px] font-bold text-gray-400 mb-4 truncate">✉️ {event.client_email}</p>
+                    )}
 
                     <div className="flex flex-col gap-2 mb-4">
                       <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Quick Links</p>
@@ -266,7 +279,6 @@ export default function SuperAdminDashboard() {
                       </div>
                     </div>
 
-                    {/* SUPER ADMIN CONTROLS (Pushed to the bottom) */}
                     <div className="mt-auto pt-4 border-t-2 border-dashed border-gray-100 flex justify-between gap-2">
                         <button 
                             onClick={() => handleCompileData(event.id, event.name)} 
