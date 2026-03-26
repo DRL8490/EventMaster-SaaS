@@ -20,18 +20,28 @@ export default function MemoryPage() {
   
   const [loading, setLoading] = useState(true);
 
-  // FESTIVE WATERMARK COMPONENTS
-  const LargeWatermark = () => (
-    <div className="absolute top-2 right-2 bg-gradient-to-r from-pink-500 via-purple-500 to-yellow-400 text-white text-[8px] md:text-[10px] font-black px-2.5 py-1 rounded-full shadow-lg transform rotate-3 border-2 border-white z-0 pointer-events-none drop-shadow-md tracking-widest uppercase">
-      🎉 Nyla's 5th Birthday 🎈
-    </div>
-  );
+// FESTIVE WATERMARK COMPONENTS (Smart, Auto-Scaling, Multi-Line)
+  const LargeWatermark = () => {
+    // Dynamically shrink the font if the event name is super long
+    const textSize = eventName.length > 20 ? "text-[6px] md:text-[8px]" : "text-[8px] md:text-[10px]";
+    
+    return (
+      <div className={`absolute top-2 right-2 bg-gradient-to-r from-pink-500 via-purple-500 to-yellow-400 text-white ${textSize} font-black px-2.5 py-1.5 rounded-2xl shadow-lg transform rotate-3 border-2 border-white z-0 pointer-events-none drop-shadow-md tracking-wider uppercase text-center max-w-[120px] md:max-w-[150px] break-words whitespace-normal leading-tight flex items-center justify-center`}>
+        🎉 {eventName} 🎈
+      </div>
+    );
+  };
 
-  const TinyWatermark = () => (
-    <div className="absolute top-0 -right-4 bg-gradient-to-r from-pink-500 to-yellow-400 text-white text-[8px] md:text-[10px] font-black px-2 py-1 rounded-full shadow-md transform rotate-6 border-2 border-white z-0 pointer-events-none whitespace-nowrap tracking-wider">
-      🎉 NYLA'S 5TH
-    </div>
-  );
+  const TinyWatermark = () => {
+    // Aggressive shrink for the tiny bubble watermark
+    const textSize = eventName.length > 20 ? "text-[5px] md:text-[6px]" : "text-[6px] md:text-[8px]";
+    
+    return (
+      <div className={`absolute -top-2 -right-4 bg-gradient-to-r from-pink-500 to-yellow-400 text-white ${textSize} font-black px-2 py-1 rounded-2xl shadow-md transform rotate-6 border-2 border-white z-0 pointer-events-none tracking-wider uppercase text-center max-w-[70px] md:max-w-[90px] break-words whitespace-normal leading-tight flex items-center justify-center`}>
+        🎉 {eventName}
+      </div>
+    );
+  };
 // THE ULTIMATE MOBILE FIX: Cache-Busting Fetch + Base64 + Double Render + RAM Saver
   const captureAndDownload = async (elementId: string, filename: string) => {
     const element = document.getElementById(elementId);
@@ -195,7 +205,7 @@ export default function MemoryPage() {
 
                             <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                                 <button 
-                                    onClick={() => captureAndDownload(`raffle-card-${w.id}`, `Nylas5th-${w.nickname}-Winner.png`)}
+                                    onClick={() => captureAndDownload(`raffle-card-${w.id}`, `${eventSlug}-Memory-${photo.id}.png`)}
                                     className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm active:scale-90 shadow-lg text-xs md:text-sm"
                                     title="Download Card"
                                 >
@@ -220,7 +230,7 @@ export default function MemoryPage() {
 
                             <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                                 <button 
-                                    onClick={() => captureAndDownload(`game-card-${g.id}`, `Nylas5th-${g.name}-Winner.png`)}
+                                    onClick={() => captureAndDownload(`game-card-${g.id}`, `${eventSlug}-Memory-${photo.id}.png`)}
                                     className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm active:scale-90 shadow-lg text-xs md:text-sm"
                                     title="Download Card"
                                 >
@@ -261,7 +271,7 @@ export default function MemoryPage() {
 
                             <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
                                 <button 
-                                    onClick={() => captureAndDownload(`live-card-${photo.id}`, `Nylas5th-Memory-${photo.id}.png`)}
+                                    onClick={() => captureAndDownload(`live-card-${photo.id}`, `${eventSlug}-Memory-${photo.id}.png`)}
                                     className="bg-black/50 hover:bg-black/70 text-white p-2 md:p-2.5 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-xs md:text-sm"
                                     title="Download Photo"
                                 >
@@ -298,7 +308,7 @@ export default function MemoryPage() {
 
                         <div data-ignore="true" className="absolute top-2 left-0 md:-left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
                             <button 
-                                onClick={() => captureAndDownload(`bubble-card-${g.id}`, `Nylas5th-${g.nickname}-Avatar.png`)}
+                                onClick={() => captureAndDownload(`bubble-card-${g.id}`, `${eventSlug}-Memory-${photo.id}.png`)}
                                 className="bg-black/60 hover:bg-black/80 text-white p-2 md:p-3 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-xs"
                                 title="Download Avatar"
                             >
