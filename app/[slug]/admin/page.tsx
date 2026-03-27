@@ -255,7 +255,7 @@ export default function AdminPage() {
                     {activeTab === "prizes" && <PrizesTab eventId={eventId} prizes={prizes} setPrizes={setPrizes} executeDbAction={executeDbAction} uniqueReferrals={uniqueReferrals} />}
                     {activeTab === "games" && <GamesTab eventId={eventId} games={games} executeDbAction={executeDbAction} />}
                     {activeTab === "suppliers" && <SuppliersTab eventId={eventId} suppliers={suppliers} executeDbAction={executeDbAction} />}
-                    {activeTab === "backgrounds" && <BackgroundsTab bgUrls={bgUrls} files={files} setFiles={setFiles} handleUpdateBackgrounds={handleUpdateBackgrounds} uploadingBg={uploadingBg} />}
+                    {activeTab === "backgrounds" && <BackgroundsTab eventId={eventId} bgUrls={bgUrls} files={files} setFiles={setFiles} handleUpdateBackgrounds={handleUpdateBackgrounds} uploadingBg={uploadingBg} />}
                 </>
             )}
         </div>
