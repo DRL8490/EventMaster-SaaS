@@ -225,7 +225,7 @@ export default function EmceePage() {
   };
 
   const handleSpin = async () => {
-    if (!prizeDisplayed) return alert("⚠️ You must Display the Prize on the TV first!");
+    if (!prizeDisplayed && activeScreen !== "roulette") return alert("⚠️ You must Display the Prize on the TV first!");
     if (!currentPrize) return alert("⚠️ The prize queue is empty!");
     
     const prizeCat = currentPrize.category || "All";
