@@ -11,10 +11,11 @@ export default function ProjectorPage() {
   const [eventId, setEventId] = useState<number | null>(null);
   const [invalidEvent, setInvalidEvent] = useState(false);
 
-  // PHASE 3 FIX: Add state to hold the styling config from Supabase
+  // STYLING STATE
   const [theme, setTheme] = useState("purple");
   const [shape, setShape] = useState("bubble");
   const [viewMode, setViewMode] = useState("grid");
+  const [bgImage, setBgImage] = useState(""); // <-- FIX #15: Background Image State
 
   const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [displayMode, setDisplayMode] = useState<"pregame" | "raffle" | "qr" | "games">("raffle");
@@ -30,13 +31,16 @@ export default function ProjectorPage() {
   const [timer, setTimer] = useState(60);
   const [timerStatus, setTimerStatus] = useState<"idle" | "running" | "paused">("idle");
 
+  // FIX #13: Hardcode base URL so QR codes perfectly match the Admin/Email QR codes
+  const baseUrl = "https://event-master-saas.vercel.app";
+
   // Helper to apply Dynamic Colors
   const getThemeColors = () => {
     switch (theme) {
-      case "blue": return { border: "border-blue-400", text: "text-blue-600", bg: "bg-blue-500", glow: "shadow-[0_0_30px_rgba(59,130,246,0.8)]" };
-      case "pink": return { border: "border-pink-400", text: "text-pink-600", bg: "bg-pink-500", glow: "shadow-[0_0_30px_rgba(236,72,153,0.8)]" };
-      case "dark": return { border: "border-gray-600", text: "text-gray-200", bg: "bg-gray-800", glow: "shadow-[0_0_30px_rgba(156,163,175,0.8)]" };
-      default: return { border: "border-purple-400", text: "text-purple-600", bg: "bg-purple-500", glow: "shadow-[0_0_30px_rgba(168,85,247,0.8)]" }; // purple
+      case "blue": return { border: "border-blue-400", text: "text-blue-600", bg: "bg-blue-600", glow: "shadow-[0_0_30px_rgba(59,130,246,0.8)]" };
+      case "pink": return { border: "border-pink-400", text: "text-pink-600", bg: "bg-pink-600", glow: "shadow-[0_0_30px_rgba(236,72,153,0.8)]" };
+      case "dark": return { border: "border-gray-600", text: "text-gray-200", bg: "bg-gray-900", glow: "shadow-[0_0_30px_rgba(156,163,175,0.8)]" };
+      default: return { border: "border-purple-400", text: "text-purple-600", bg: "bg-purple-900", glow: "shadow-[0_0_30px_rgba(168,85,247,0.8)]" }; 
     }
   };
   const themeStyles = getThemeColors();
@@ -46,7 +50,7 @@ export default function ProjectorPage() {
     switch (shape) {
       case "square": return "rounded-none";
       case "rounded": return "rounded-3xl";
-      default: return "rounded-full"; // bubble
+      default: return "rounded-full"; 
     }
   };
 
@@ -64,12 +68,13 @@ export default function ProjectorPage() {
       }
       setEventId(eventData.id);
 
-      // PHASE 3 FIX: Fetch the custom styling configs
-      const { data: configData } = await supabase.from("raffle_config").select("color_theme, card_shape, display_mode").eq("event_id", eventData.id).single();
+      // FIX #15: Fetch the landscape_url for the background!
+      const { data: configData } = await supabase.from("raffle_config").select("color_theme, card_shape, display_mode, landscape_url").eq("event_id", eventData.id).single();
       if (configData) {
           if (configData.color_theme) setTheme(configData.color_theme);
           if (configData.card_shape) setShape(configData.card_shape);
           if (configData.display_mode) setViewMode(configData.display_mode);
+          if (configData.landscape_url) setBgImage(configData.landscape_url);
       }
     };
 
@@ -149,7 +154,7 @@ export default function ProjectorPage() {
       })
       .subscribe();
 
-    // Listen for live config updates from Admin page!
+    // FIX #15: Listen for live background updates!
     const configSub = supabase.channel(`config_update_${eventId}`).on(
         "postgres_changes", 
         { event: "UPDATE", schema: "public", table: "raffle_config", filter: `event_id=eq.${eventId}` }, 
@@ -157,6 +162,7 @@ export default function ProjectorPage() {
             if (payload.new.color_theme) setTheme(payload.new.color_theme);
             if (payload.new.card_shape) setShape(payload.new.card_shape);
             if (payload.new.display_mode) setViewMode(payload.new.display_mode);
+            if (payload.new.landscape_url !== undefined) setBgImage(payload.new.landscape_url);
         }
       ).subscribe();
 
@@ -178,42 +184,51 @@ export default function ProjectorPage() {
   }
 
   return (
-    <div className="fixed inset-0 w-full flex flex-col items-center justify-center p-4 md:p-6 bg-transparent overflow-hidden" style={{ cursor: "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32\" height=\"32\" viewBox=\"0 0 32 32\"><circle cx=\"16\" cy=\"16\" r=\"10\" fill=\"%23a855f7\" opacity=\"0.8\"/><circle cx=\"16\" cy=\"16\" r=\"6\" fill=\"%23ffffff\"/></svg>') 16 16, auto" }}>
+    // FIX #14 & #15: Strict h-screen w-screen to prevent overflow scaling issues, applied background image and color fallbacks!
+    <div 
+      className={`fixed inset-0 w-screen h-screen flex flex-col items-center justify-center p-4 md:p-8 overflow-hidden ${!bgImage ? themeStyles.bg : "bg-gray-900"}`} 
+      style={{ 
+        backgroundImage: bgImage ? `url(${bgImage})` : 'none',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        cursor: "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32\" height=\"32\" viewBox=\"0 0 32 32\"><circle cx=\"16\" cy=\"16\" r=\"10\" fill=\"%23a855f7\" opacity=\"0.8\"/><circle cx=\"16\" cy=\"16\" r=\"6\" fill=\"%23ffffff\"/></svg>') 16 16, auto" 
+      }}
+    >
       
-      {/* PHASE 3 FIX: Pass down the shape logic to the pregame floaters */}
+      {/* PREGAME BUBBLES */}
       {displayMode === "pregame" && eventId && <PregameBubbles eventId={eventId} shapeClass={getShapeClass()} themeStyles={themeStyles} />}
 
-      {/* QR DISPLAY - Now matches the Color Theme */}
+      {/* QR DISPLAY - FIX #14: Scaled down heights to fit perfectly */}
       {displayMode === "qr" && (
-        <div className={`bg-white/95 backdrop-blur-xl p-10 md:p-16 rounded-[4rem] shadow-2xl text-center border-8 ${themeStyles.border} animate-in zoom-in duration-700 w-[95%] max-w-7xl mx-auto flex flex-col items-center z-10`}>
-          <h1 className={`text-4xl md:text-6xl font-black ${themeStyles.text} uppercase mb-12 drop-shadow-sm tracking-widest`}>
+        <div className={`bg-white/95 backdrop-blur-xl p-8 lg:p-12 rounded-[3rem] shadow-2xl text-center border-8 ${themeStyles.border} animate-in zoom-in duration-700 w-full max-w-7xl mx-auto flex flex-col items-center z-10 max-h-[90vh]`}>
+          <h1 className={`text-3xl lg:text-5xl xl:text-6xl font-black ${themeStyles.text} uppercase mb-8 lg:mb-10 drop-shadow-sm tracking-widest shrink-0`}>
             Scan to Relive the Magic!
           </h1>
           
-          <div className="flex flex-col md:flex-row items-stretch justify-between gap-16 md:gap-32 w-full px-4 md:px-12">
-              <div className="flex flex-col items-center justify-center bg-gray-50 p-8 md:p-10 rounded-3xl border-4 border-gray-200 shadow-inner w-full md:w-1/2">
-                  <h2 className="text-3xl md:text-5xl font-black text-gray-800 uppercase tracking-widest mb-4">Memory Gallery</h2>
-                  <p className="text-lg font-bold text-gray-500 uppercase tracking-widest mb-8">See all winners & guests!</p>
-                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/${eventSlug}/memory` : '')}`} alt="Memory QR" className="w-64 h-64 md:w-96 md:h-96 rounded-2xl shadow-xl border-8 border-white transition-transform hover:scale-105" />
+          <div className="flex flex-col md:flex-row items-stretch justify-center gap-8 lg:gap-16 w-full flex-1 min-h-0 overflow-hidden">
+              <div className="flex flex-col items-center justify-center bg-gray-50 p-6 lg:p-8 rounded-3xl border-4 border-gray-200 shadow-inner flex-1 max-h-full">
+                  <h2 className="text-2xl lg:text-4xl font-black text-gray-800 uppercase tracking-widest mb-2 shrink-0">Memory Gallery</h2>
+                  <p className="text-sm lg:text-base font-bold text-gray-500 uppercase tracking-widest mb-4 lg:mb-6 shrink-0">See all winners & guests!</p>
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(`${baseUrl}/${eventSlug}/memory`)}`} alt="Memory QR" className="w-48 h-48 lg:w-72 lg:h-72 object-contain rounded-2xl shadow-xl border-8 border-white transition-transform hover:scale-105 shrink min-h-0" />
               </div>
 
-              <div className="flex flex-col items-center justify-center bg-blue-50 p-8 md:p-10 rounded-3xl border-4 border-blue-200 shadow-inner w-full md:w-1/2">
-                  <h2 className="text-3xl md:text-5xl font-black text-blue-700 uppercase tracking-widest mb-4 whitespace-nowrap">Photo Drop</h2>
-                  <p className="text-lg font-bold text-blue-500 uppercase tracking-widest mb-8">Share your favorite moments!</p>
-                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(typeof window !== 'undefined' ? `${window.location.origin}/${eventSlug}/upload` : '')}`} alt="Upload QR" className="w-64 h-64 md:w-96 md:h-96 rounded-2xl shadow-xl border-8 border-white transition-transform hover:scale-105" />
+              <div className="flex flex-col items-center justify-center bg-blue-50 p-6 lg:p-8 rounded-3xl border-4 border-blue-200 shadow-inner flex-1 max-h-full">
+                  <h2 className="text-2xl lg:text-4xl font-black text-blue-700 uppercase tracking-widest mb-2 whitespace-nowrap shrink-0">Photo Drop</h2>
+                  <p className="text-sm lg:text-base font-bold text-blue-500 uppercase tracking-widest mb-4 lg:mb-6 shrink-0">Share your favorite moments!</p>
+                  <img src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(`${baseUrl}/${eventSlug}/upload`)}`} alt="Upload QR" className="w-48 h-48 lg:w-72 lg:h-72 object-contain rounded-2xl shadow-xl border-8 border-white transition-transform hover:scale-105 shrink min-h-0" />
               </div>
           </div>
         </div>
       )}
 
       {displayMode === "games" && activeGame && (
-        <div className="bg-green-400 text-green-900 py-10 px-8 md:py-16 md:px-12 rounded-[4rem] shadow-2xl text-center border-8 border-green-200 animate-in zoom-in duration-700 w-[95%] max-w-6xl mx-auto flex flex-col items-center justify-center relative overflow-hidden z-10 max-h-[90vh]">
+        <div className="bg-green-400 text-green-900 py-8 px-8 lg:py-16 lg:px-12 rounded-[4rem] shadow-2xl text-center border-8 border-green-200 animate-in zoom-in duration-700 w-full max-w-6xl mx-auto flex flex-col items-center justify-center relative z-10 max-h-[90vh]">
             <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white to-transparent pointer-events-none"></div>
-            <span className="text-7xl md:text-8xl mb-4 md:mb-6 animate-bounce relative z-10">🎲</span>
-            <p className="text-2xl md:text-4xl font-bold uppercase tracking-widest text-green-800 mb-4 md:mb-6 relative z-10">Get Ready to Play:</p>
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-black uppercase tracking-tighter drop-shadow-lg mb-8 relative z-10 leading-tight break-words max-w-full px-4">{activeGame.name}</h1>
-            <div className="bg-white/95 px-8 py-4 md:px-12 md:py-5 rounded-full border-4 border-green-500 shadow-xl relative z-10 animate-pulse mt-auto flex-shrink-0">
-                <p className="text-2xl md:text-4xl font-black text-green-700 uppercase tracking-widest">Looking for {activeGame.winners} {activeGame.winners === 1 ? 'Winner' : 'Winners'}!</p>
+            <span className="text-6xl lg:text-8xl mb-4 animate-bounce relative z-10 shrink-0">🎲</span>
+            <p className="text-xl lg:text-3xl font-bold uppercase tracking-widest text-green-800 mb-4 relative z-10 shrink-0">Get Ready to Play:</p>
+            <h1 className="text-4xl md:text-5xl lg:text-7xl xl:text-8xl font-black uppercase tracking-tighter drop-shadow-lg mb-8 relative z-10 leading-tight break-words max-w-full px-4 shrink">{activeGame.name}</h1>
+            <div className="bg-white/95 px-8 py-4 lg:px-12 lg:py-5 rounded-full border-4 border-green-500 shadow-xl relative z-10 animate-pulse mt-auto shrink-0">
+                <p className="text-xl lg:text-3xl font-black text-green-700 uppercase tracking-widest">Looking for {activeGame.winners} {activeGame.winners === 1 ? 'Winner' : 'Winners'}!</p>
             </div>
         </div>
       )}
@@ -229,55 +244,54 @@ export default function ProjectorPage() {
           <style dangerouslySetInnerHTML={{ __html: `@keyframes slotDrop { 0% { transform: translateY(-100%); opacity: 0; } 40% { opacity: 1; } 100% { transform: translateY(0); opacity: 1; } } .animate-slot { animation: slotDrop 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }` }} />
 
           {!isSpinning && !shuffleData && !winner && !prizeName && (
-            <div className="bg-black/40 backdrop-blur-sm border border-white/20 p-12 rounded-[3rem] shadow-2xl text-center w-full max-w-5xl mx-auto shrink min-h-0">
-              <h1 className="text-6xl font-black text-white drop-shadow-xl uppercase tracking-widest mb-6">Party Master SaaS</h1>
-              <p className="text-4xl text-blue-300 font-bold tracking-widest uppercase animate-pulse">Waiting for Emcee...</p>
+            <div className="bg-black/60 backdrop-blur-md border border-white/20 p-8 lg:p-12 rounded-[3rem] shadow-2xl text-center w-full max-w-5xl mx-auto z-10">
+              <h1 className="text-4xl lg:text-6xl font-black text-white drop-shadow-xl uppercase tracking-widest mb-4 lg:mb-6">Party Master SaaS</h1>
+              <p className="text-2xl lg:text-4xl text-blue-300 font-bold tracking-widest uppercase animate-pulse">Waiting for Emcee...</p>
             </div>
           )}
 
           {!isSpinning && !shuffleData && !winner && prizeName && (
-            <div className="bg-yellow-400 text-yellow-900 py-16 px-12 rounded-[4rem] shadow-2xl text-center border-8 border-yellow-200 animate-in zoom-in duration-700 w-[90%] max-w-5xl mx-auto flex flex-col items-center justify-center">
-              <p className="text-5xl font-bold uppercase tracking-widest text-yellow-800 mb-4">Upcoming Prize:</p>
-              <h1 className="text-7xl font-black uppercase tracking-tighter drop-shadow-lg break-words px-4 leading-tight">🎁 {prizeName} 🎁</h1>
+            <div className="bg-yellow-400 text-yellow-900 py-12 px-8 lg:py-16 lg:px-12 rounded-[4rem] shadow-2xl text-center border-8 border-yellow-200 animate-in zoom-in duration-700 w-full max-w-5xl mx-auto flex flex-col items-center justify-center z-10 max-h-[90vh]">
+              <p className="text-3xl lg:text-5xl font-bold uppercase tracking-widest text-yellow-800 mb-4 shrink-0">Upcoming Prize:</p>
+              <h1 className="text-5xl md:text-6xl lg:text-8xl font-black uppercase tracking-tighter drop-shadow-lg break-words px-4 leading-tight shrink">🎁 {prizeName} 🎁</h1>
             </div>
           )}
 
           {(isSpinning || shuffleData || winner) && prizeName && (
-            <div className="bg-yellow-400 text-yellow-900 px-6 py-3 rounded-full shadow-2xl font-black text-4xl uppercase tracking-widest mb-4 border-4 border-yellow-200 animate-in slide-in-from-top duration-500 z-10 text-center break-words max-w-[90%] leading-tight">
+            <div className="bg-yellow-400 text-yellow-900 px-6 py-3 rounded-full shadow-2xl font-black text-2xl lg:text-4xl uppercase tracking-widest mb-4 border-4 border-yellow-200 animate-in slide-in-from-top duration-500 z-10 text-center break-words max-w-[90%] leading-tight shrink-0">
               🎁 {prizeName} 🎁
             </div>
           )}
 
           {isSpinning && (
-            <div className={`animate-bounce bg-white/90 backdrop-blur-md p-16 rounded-[4rem] shadow-2xl text-center border-8 ${themeStyles.border} w-full max-w-5xl mx-auto z-10`}>
-              <h1 className={`text-8xl font-black ${themeStyles.text} uppercase tracking-tighter`}>🎰 Drawing...</h1>
+            <div className={`animate-bounce bg-white/95 backdrop-blur-xl p-12 lg:p-16 rounded-[4rem] shadow-2xl text-center border-8 ${themeStyles.border} w-full max-w-5xl mx-auto z-10 flex-1 flex items-center justify-center max-h-[60vh]`}>
+              <h1 className={`text-6xl lg:text-8xl font-black ${themeStyles.text} uppercase tracking-tighter`}>🎰 Drawing...</h1>
             </div>
           )}
 
-          {/* PHASE 3 FIX: Raffle shuffle applies shape styling! */}
           {shuffleData && (
-            <div className={`bg-white/95 backdrop-blur-xl rounded-[3rem] shadow-2xl border-8 ${themeStyles.border} w-full max-w-4xl transform scale-105 h-72 flex items-center justify-center p-6 mx-auto z-10`}>
-              <div key={shuffleData.key} className="flex items-center justify-center gap-8 w-full animate-slot">
-                <img src={shuffleData.guest.photo_url} alt="Shuffle Guest" className={`w-56 h-56 object-cover border-4 ${themeStyles.border} ${getShapeClass()}`} />
-                <h1 className={`text-8xl font-black ${themeStyles.text} uppercase truncate pb-2`}>{shuffleData.guest.nickname}</h1>
+            <div className={`bg-white/95 backdrop-blur-xl rounded-[3rem] shadow-2xl border-8 ${themeStyles.border} w-full max-w-5xl transform scale-105 h-64 lg:h-80 flex items-center justify-center p-6 mx-auto z-10`}>
+              <div key={shuffleData.key} className="flex items-center justify-center gap-6 lg:gap-10 w-full animate-slot">
+                <img src={shuffleData.guest.photo_url} alt="Shuffle Guest" className={`w-40 h-40 lg:w-64 lg:h-64 object-cover border-4 ${themeStyles.border} ${getShapeClass()} shrink-0`} />
+                <h1 className={`text-6xl lg:text-8xl xl:text-9xl font-black ${themeStyles.text} uppercase truncate pb-2`}>{shuffleData.guest.nickname}</h1>
               </div>
             </div>
           )}
 
           {winner && !isSpinning && !shuffleData && (
-            <div className={`bg-white/95 backdrop-blur-xl p-10 rounded-[3rem] shadow-2xl text-center border-8 border-green-400 animate-in zoom-in duration-700 w-[90%] max-w-4xl flex flex-col items-center justify-center gap-3 mx-auto z-10 max-h-[85vh]`}>
-              <div className="text-5xl animate-bounce">🎉🏆🎉</div>
-              <h2 className="text-2xl font-bold text-gray-500 uppercase tracking-widest">Congratulations</h2>
-              <h1 className={`text-6xl md:text-7xl font-black ${themeStyles.text} uppercase py-1 truncate max-w-full`}>{winner.nickname}!</h1>
+            <div className={`bg-white/95 backdrop-blur-xl p-8 lg:p-10 rounded-[3rem] shadow-2xl text-center border-8 border-green-400 animate-in zoom-in duration-700 w-full max-w-5xl flex flex-col items-center justify-center gap-2 lg:gap-4 mx-auto z-10 flex-1 min-h-0 max-h-[85vh]`}>
+              <div className="text-4xl lg:text-6xl animate-bounce shrink-0">🎉🏆🎉</div>
+              <h2 className="text-xl lg:text-3xl font-bold text-gray-500 uppercase tracking-widest shrink-0">Congratulations</h2>
+              <h1 className={`text-5xl md:text-7xl lg:text-8xl xl:text-9xl font-black ${themeStyles.text} uppercase py-1 truncate max-w-full shrink`}>{winner.nickname}!</h1>
               
-              <div className="flex justify-center py-2">
-                <img src={winner.photo_url} alt="Winner" className={`max-h-[25vh] aspect-square object-cover border-8 border-green-500 shadow-2xl ${getShapeClass()}`} />
+              <div className="flex justify-center py-2 min-h-0 flex-1 overflow-hidden">
+                <img src={winner.photo_url} alt="Winner" className={`h-full aspect-square max-h-[30vh] lg:max-h-[35vh] object-cover border-8 border-green-500 shadow-2xl ${getShapeClass()}`} />
               </div>
               
               {timerStatus !== "idle" && (
-                <div className={`mt-4 px-12 py-4 rounded-full border-4 ${timerStatus === "paused" ? "bg-gray-200 border-gray-400 text-gray-600" : "bg-red-100 border-red-500 text-red-600 animate-pulse"}`}>
-                    <p className="text-sm font-black uppercase tracking-widest leading-none mb-1 text-center">Time to Claim</p>
-                    <p className="text-5xl font-black tracking-widest text-center">⏱️ {timer}s</p>
+                <div className={`mt-2 lg:mt-4 px-10 py-3 lg:py-4 rounded-full border-4 shrink-0 ${timerStatus === "paused" ? "bg-gray-200 border-gray-400 text-gray-600" : "bg-red-100 border-red-500 text-red-600 animate-pulse"}`}>
+                    <p className="text-xs lg:text-sm font-black uppercase tracking-widest leading-none mb-1 text-center">Time to Claim</p>
+                    <p className="text-4xl lg:text-5xl font-black tracking-widest text-center">⏱️ {timer}s</p>
                 </div>
               )}
             </div>
@@ -357,11 +371,11 @@ function PregameBubbles({ eventId, shapeClass, themeStyles }: { eventId: number,
     <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
       <style dangerouslySetInnerHTML={{ __html: `@keyframes floatContinuous { 0% { top: 120vh; opacity: 0; transform: scale(0.8); } 5% { opacity: 1; transform: scale(1); } 95% { opacity: 1; } 100% { top: -40vh; opacity: 0; } }` }} />
 
-      <div className="absolute top-10 w-full text-center z-50">
-          <h1 className="text-6xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] uppercase tracking-widest">
+      <div className="absolute top-[10vh] w-full text-center z-50">
+          <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] uppercase tracking-widest px-4">
             Welcome to the Party!
           </h1>
-          <p className="text-3xl text-blue-300 font-bold drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] mt-2">
+          <p className="text-2xl md:text-4xl text-blue-300 font-bold drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] mt-2 lg:mt-4">
             Get your phones ready to scan!
           </p>
       </div>
@@ -369,8 +383,7 @@ function PregameBubbles({ eventId, shapeClass, themeStyles }: { eventId: number,
       {bubbles.map((b) => {
         if (!b.guest) return null;
         return (
-          // PHASE 3 FIX: Floating Avatars now respect the custom Shape and Color Glow!
-          <div key={b.slotId} onAnimationIteration={() => handleIteration(b.slotId)} className={`absolute overflow-hidden flex items-center justify-center will-change-transform border-4 border-white ${themeStyles.glow} z-30 opacity-95 ${shapeClass}`} style={{ width: "240px", height: "240px", left: `${b.left}vw`, top: `120vh`, animation: `floatContinuous ${b.duration}s linear ${b.delay}s infinite` } as React.CSSProperties}>
+          <div key={b.slotId} onAnimationIteration={() => handleIteration(b.slotId)} className={`absolute overflow-hidden flex items-center justify-center will-change-transform border-4 border-white ${themeStyles.glow} z-30 opacity-95 ${shapeClass}`} style={{ width: "220px", height: "220px", left: `${b.left}vw`, top: `120vh`, animation: `floatContinuous ${b.duration}s linear ${b.delay}s infinite` } as React.CSSProperties}>
             <img src={b.guest.photo_url} className="w-full h-full object-cover" alt="Guest Bubble" />
             <div className="absolute bottom-0 w-full bg-black/60 backdrop-blur-sm text-white font-black text-center py-2 flex flex-col items-center justify-center">
               <span className="text-base uppercase leading-none">{b.guest.nickname}</span>
