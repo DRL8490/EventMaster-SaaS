@@ -64,7 +64,7 @@ export default function EmceePage() {
   }, [eventSlug]);
 
 
-  // 2. FETCH DATA & CONNECT WEBSOCKET (Only runs after auth & eventId are ready)
+  // 2. FETCH DATA
   const fetchData = async () => {
     if (!eventId) return;
     setLoading(true);
@@ -130,16 +130,17 @@ export default function EmceePage() {
     setLoading(false);
   };
 
-useEffect(() => {
+  // 3. BULLETPROOF WEBSOCKET CONNECTION
+  useEffect(() => {
     if (isAuthenticated && eventId) {
         fetchData();
         
-        // 1. ADDED ACK: TRUE to force Supabase to guarantee message delivery
+        // ADDED ACK: TRUE to force Supabase to guarantee message delivery
         const raffleChannel = supabase.channel(`raffle_${eventId}`, {
             config: { broadcast: { ack: true } }
         });
 
-        // 2. RACE CONDITION FIX: Do not activate the channel until Supabase says 'SUBSCRIBED'
+        // RACE CONDITION FIX: Do not activate the channel until Supabase says 'SUBSCRIBED'
         raffleChannel.subscribe((status) => {
             if (status === 'SUBSCRIBED') {
                 setChannel(raffleChannel);
@@ -168,21 +169,11 @@ useEffect(() => {
     return () => clearInterval(interval);
   }, [timerStatus, timer, channel]);
 
-  const pauseTimer = () => { setTimerStatus("paused"); channel?.send({ type: "broadcast", event: "timer_sync", payload: { time: timer, status: "paused" }}); };
-  const resumeTimer = () => { setTimerStatus("running"); channel?.send({ type: "broadcast", event: "timer_sync", payload: { time: timer, status: "running" }}); };
-
-  // 3. CLEANED UP BUGGY PAYLOAD
-  const changeScreen = async (mode: "pregame" | "raffle" | "games" | "qr") => {
-    setActiveScreen(mode);
-    if (channel) {
-        await channel.send({ type: "broadcast", event: "set_display", payload: { mode: mode } });
-    }
-  };
   // LOGIN HANDLER
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (eventPasscode && passcodeInput.toUpperCase() === eventPasscode.toUpperCase()) {
-      sessionStorage.setItem(`host_auth_${eventId}`, "true"); // Store auth specifically for this event
+      sessionStorage.setItem(`host_auth_${eventId}`, "true"); 
       setIsAuthenticated(true);
     } else {
       setAuthError("Incorrect passcode!");
@@ -193,20 +184,21 @@ useEffect(() => {
   const pauseTimer = () => { setTimerStatus("paused"); channel?.send({ type: "broadcast", event: "timer_sync", payload: { time: timer, status: "paused" }}); };
   const resumeTimer = () => { setTimerStatus("running"); channel?.send({ type: "broadcast", event: "timer_sync", payload: { time: timer, status: "running" }}); };
 
+  // CLEANED UP BUGGY PAYLOAD
   const changeScreen = async (mode: "pregame" | "raffle" | "games" | "qr") => {
     setActiveScreen(mode);
-    if (channel) await channel.send({ type: "broadcast", event: "set_display", payload: { mode: mode === "games" ? "pregame" : mode } });
+    if (channel) {
+        await channel.send({ type: "broadcast", event: "set_display", payload: { mode: mode } });
+    }
   };
 
   const playSound = async (soundFile: string) => {
     if (channel) await channel.send({ type: "broadcast", event: "play_sound", payload: { sound: soundFile } });
   };
 
-  // ACTIONS (All updated to target specific eventId if necessary, though ID matches already handle most isolation)
   const handleDemoReset = async () => {
     if (!window.confirm("🚨 WARNING: Reset all winners AND prizes back to 'Eligible/Unclaimed'?")) return;
     setLoading(true);
-    // SAAS UPDATES: Ensure we only reset THIS event
     await supabase.from("guests").update({ status: "eligible", prize_won: null, proof_url: null }).eq("event_id", eventId).eq("status", "won");
     await supabase.from("prizes").update({ status: "unclaimed" }).eq("event_id", eventId).eq("status", "claimed");
     await supabase.from("games").update({ status: "pending", proof_url: null }).eq("event_id", eventId).neq("id", 0);

@@ -25,9 +25,16 @@ export default function ProjectorPage() {
   const [timer, setTimer] = useState(60);
   const [timerStatus, setTimerStatus] = useState<"idle" | "running" | "paused">("idle");
 
-  // 1. GET THE EVENT ID (Runs only once)
+  // 1. GET THE EVENT ID & DYNAMIC WINDOW SIZING
   useEffect(() => {
+    // Set initial size
     setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+
+    // UPDATE 1: Listen for screen size changes (like going Fullscreen!)
+    const handleResize = () => {
+      setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    };
+    window.addEventListener("resize", handleResize);
 
     const fetchEventId = async () => {
       const { data: eventData } = await supabase
@@ -44,13 +51,15 @@ export default function ProjectorPage() {
     };
 
     if (eventSlug) fetchEventId();
+
+    return () => window.removeEventListener("resize", handleResize);
   }, [eventSlug]);
 
-  // 2. CONNECT TO PRIVATE EVENT WEBSOCKET (Runs after ID is found)
+  // 2. CONNECT TO PRIVATE EVENT WEBSOCKET
   useEffect(() => {
     if (!eventId) return;
 
-    // ADDED ACK: TRUE to match the Emcee
+    // ADDED ACK: TRUE to guarantee delivery
     const channel = supabase.channel(`raffle_${eventId}`, {
         config: { broadcast: { ack: true } }
     });
@@ -154,12 +163,18 @@ export default function ProjectorPage() {
         });
         setActiveGame(null);
       })
-      .subscribe();
+      // UPDATE 2: Add a status checker to prove the connection works!
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`📡 Projector WebSocket Status: CONNECTED to Event #${eventId}`);
+        }
+      });
 
     return () => { 
       supabase.removeChannel(channel); 
     };
-  }, [eventId]); // <--- MASSIVE FIX: Removed `displayMode` from this array!
+  }, [eventId]); 
+
   if (invalidEvent) return <div className="fixed inset-0 bg-black flex items-center justify-center text-red-500 text-4xl font-black uppercase">Event Not Found</div>;
 
   if (!audioUnlocked) {
