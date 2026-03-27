@@ -20,25 +20,25 @@ export default function MemoryPage() {
   
   const [loading, setLoading] = useState(true);
 
-  // FESTIVE WATERMARK COMPONENTS (Smart, Auto-Scaling, Multi-Line)
+// FESTIVE WATERMARK COMPONENTS (Fully Responsive, Percentage-Based, Line-Capped)
   const LargeWatermark = () => {
     // Dynamically shrink the font if the event name is super long
-    const textSize = eventName.length > 20 ? "text-[6px] md:text-[8px]" : "text-[8px] md:text-[10px]";
+    const textSize = eventName.length > 20 ? "text-[5px] md:text-[8px]" : "text-[6px] md:text-[10px]";
     
     return (
-      <div className={`absolute top-2 right-2 bg-gradient-to-r from-pink-500 via-purple-500 to-yellow-400 text-white ${textSize} font-black px-2.5 py-1.5 rounded-2xl shadow-lg transform rotate-3 border-2 border-white z-0 pointer-events-none drop-shadow-md tracking-wider uppercase text-center max-w-[120px] md:max-w-[150px] break-words whitespace-normal leading-tight flex items-center justify-center`}>
-        🎉 {eventName} 🎈
+      <div className={`absolute top-1.5 right-1.5 md:top-2 md:right-2 bg-gradient-to-r from-pink-500 via-purple-500 to-yellow-400 text-white ${textSize} font-black px-1.5 py-1 md:px-2.5 md:py-1.5 rounded-lg md:rounded-2xl shadow-lg transform rotate-2 md:rotate-3 border border-white z-0 pointer-events-none drop-shadow-md tracking-wider uppercase text-center max-w-[70%] md:max-w-[60%] flex items-center justify-center`}>
+        <span className="line-clamp-2 leading-tight break-words">🎉 {eventName} 🎈</span>
       </div>
     );
   };
 
   const TinyWatermark = () => {
     // Aggressive shrink for the tiny bubble watermark
-    const textSize = eventName.length > 20 ? "text-[5px] md:text-[6px]" : "text-[6px] md:text-[8px]";
+    const textSize = eventName.length > 20 ? "text-[4px] md:text-[6px]" : "text-[5px] md:text-[8px]";
     
     return (
-      <div className={`absolute -top-2 -right-4 bg-gradient-to-r from-pink-500 to-yellow-400 text-white ${textSize} font-black px-2 py-1 rounded-2xl shadow-md transform rotate-6 border-2 border-white z-0 pointer-events-none tracking-wider uppercase text-center max-w-[70px] md:max-w-[90px] break-words whitespace-normal leading-tight flex items-center justify-center`}>
-        🎉 {eventName}
+      <div className={`absolute -top-1 -right-2 md:-top-2 md:-right-4 bg-gradient-to-r from-pink-500 to-yellow-400 text-white ${textSize} font-black px-1.5 py-0.5 md:px-2 md:py-1 rounded-md md:rounded-2xl shadow-md transform rotate-6 border border-white z-0 pointer-events-none tracking-wider uppercase text-center max-w-[75%] md:max-w-[65%] flex items-center justify-center`}>
+        <span className="line-clamp-2 leading-tight break-words">🎉 {eventName}</span>
       </div>
     );
   };
