@@ -7,16 +7,14 @@ import Confetti from "react-confetti";
 
 export default function ProjectorPage() {
   const params = useParams();
-  const eventSlug = params.slug;
+  const eventSlug = params?.slug || "";
   const [eventId, setEventId] = useState<number | null>(null);
   const [invalidEvent, setInvalidEvent] = useState(false);
 
-  // STYLING STATE
+  // SAAS CONFIG STATE
   const [theme, setTheme] = useState("purple");
   const [shape, setShape] = useState("bubble");
   const [viewMode, setViewMode] = useState("grid");
-  
-  // FIX #15: Background Image State
   const [bgImage, setBgImage] = useState<string | null>(null);
 
   const [audioUnlocked, setAudioUnlocked] = useState(false);
@@ -35,7 +33,7 @@ export default function ProjectorPage() {
 
   const baseUrl = "https://event-master-saas.vercel.app";
 
-  // Helper to apply Dynamic Colors (Fallback when no image is present)
+  // Helper to apply Dynamic Colors
   const getThemeColors = () => {
     switch (theme) {
       case "blue": return { border: "border-blue-400", text: "text-blue-600", bg: "bg-blue-600", glow: "shadow-[0_0_30px_rgba(59,130,246,0.8)]" };
@@ -55,6 +53,11 @@ export default function ProjectorPage() {
     }
   };
 
+  // 🛠️ DIAGNOSTIC: Monitor React State Changes
+  useEffect(() => {
+    console.log("🛠️ DIAGNOSTIC [State] -> Current Theme:", theme, "| Current Shape:", shape, "| Background URL:", bgImage);
+  }, [theme, shape, bgImage]);
+
   // 1. GET THE EVENT ID & STYLING CONFIG
   useEffect(() => {
     setWindowSize({ width: window.innerWidth, height: window.innerHeight });
@@ -69,14 +72,20 @@ export default function ProjectorPage() {
       }
       setEventId(eventData.id);
 
-      // FIX #15: Fetch the custom background & styling!
-      const { data: configData } = await supabase.from("raffle_config").select("color_theme, card_shape, display_mode, landscape_url").eq("event_id", eventData.id).single();
+      console.log("🛠️ DIAGNOSTIC [DB Fetch] -> Requesting config for Event ID:", eventData.id);
+      
+      const { data: configData, error: configError } = await supabase.from("raffle_config").select("color_theme, card_shape, display_mode, landscape_url").eq("event_id", eventData.id).single();
+      
+      if (configError) {
+          console.error("🛠️ DIAGNOSTIC [DB Error] -> Failed to fetch config:", configError);
+      }
+      
       if (configData) {
+          console.log("🛠️ DIAGNOSTIC [DB Success] -> Initial Config Loaded:", configData);
           if (configData.color_theme) setTheme(configData.color_theme);
           if (configData.card_shape) setShape(configData.card_shape);
           if (configData.display_mode) setViewMode(configData.display_mode);
           
-          // Force the background image if it exists
           if (configData.landscape_url && configData.landscape_url.trim() !== "") {
               setBgImage(configData.landscape_url);
           }
@@ -88,7 +97,7 @@ export default function ProjectorPage() {
     return () => window.removeEventListener("resize", handleResize);
   }, [eventSlug]);
 
-  // 2. CONNECT TO PRIVATE EVENT WEBSOCKET
+  // 2. CONNECT TO WEBSOCKETS
   useEffect(() => {
     if (!eventId) return;
 
@@ -159,23 +168,30 @@ export default function ProjectorPage() {
       })
       .subscribe();
 
-    // FIX #15: Listen for live background updates from the Admin Backgrounds tab!
+    // LISTEN FOR LIVE CONFIG UPDATES
     const configSub = supabase.channel(`config_update_${eventId}`).on(
         "postgres_changes", 
         { event: "UPDATE", schema: "public", table: "raffle_config", filter: `event_id=eq.${eventId}` }, 
         (payload: any) => {
+            console.log("🛠️ DIAGNOSTIC [WebSocket] -> Live Update Received from Admin:", payload.new);
+            
             if (payload.new.color_theme) setTheme(payload.new.color_theme);
             if (payload.new.card_shape) setShape(payload.new.card_shape);
             if (payload.new.display_mode) setViewMode(payload.new.display_mode);
             
-            // Live background image swap!
-            if (payload.new.landscape_url && payload.new.landscape_url.trim() !== "") {
-                setBgImage(payload.new.landscape_url);
-            } else {
-                setBgImage(null); // Revert to solid color if admin deletes the background
+            if (payload.new.landscape_url !== undefined) {
+                if (payload.new.landscape_url && payload.new.landscape_url.trim() !== "") {
+                    setBgImage(payload.new.landscape_url);
+                } else {
+                    setBgImage(null);
+                }
             }
         }
-      ).subscribe();
+      ).subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+              console.log("🛠️ DIAGNOSTIC [WebSocket] -> Config channel successfully connected.");
+          }
+      });
 
     return () => { 
       supabase.removeChannel(channel); 
@@ -194,14 +210,17 @@ export default function ProjectorPage() {
     );
   }
 
+  // 🛠️ DIAGNOSTIC: Check the computed styles right before rendering
+  const computedMainStyle = {
+    ...(bgImage ? { backgroundImage: `url('${bgImage}')`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
+    cursor: "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32\" height=\"32\" viewBox=\"0 0 32 32\"><circle cx=\"16\" cy=\"16\" r=\"10\" fill=\"%23a855f7\" opacity=\"0.8\"/><circle cx=\"16\" cy=\"16\" r=\"6\" fill=\"%23ffffff\"/></svg>') 16 16, auto" 
+  };
+  console.log("🛠️ DIAGNOSTIC [Render] -> Applying Inline Styles:", computedMainStyle);
+
   return (
-    // FIX #14 & #15: Strict layout and dynamic CSS background image injection
     <div 
-      className={`fixed inset-0 w-screen h-screen flex flex-col items-center justify-center p-4 md:p-8 overflow-hidden ${!bgImage ? themeStyles.bg : ""}`} 
-      style={{ 
-        ...(bgImage ? { backgroundImage: `url('${bgImage}')`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
-        cursor: "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32\" height=\"32\" viewBox=\"0 0 32 32\"><circle cx=\"16\" cy=\"16\" r=\"10\" fill=\"%23a855f7\" opacity=\"0.8\"/><circle cx=\"16\" cy=\"16\" r=\"6\" fill=\"%23ffffff\"/></svg>') 16 16, auto" 
-      }}
+      className={`fixed inset-0 w-screen h-screen flex flex-col items-center justify-center p-4 md:p-8 overflow-hidden ${!bgImage ? themeStyles.bg : "bg-gray-900"}`} 
+      style={computedMainStyle}
     >
       
       {/* PREGAME BUBBLES */}
