@@ -18,7 +18,8 @@ export default function ProjectorPage() {
   const [bgImage, setBgImage] = useState<string | null>(null);
 
   const [audioUnlocked, setAudioUnlocked] = useState(false);
-  const [displayMode, setDisplayMode] = useState<"pregame" | "raffle" | "qr" | "games">("raffle");
+  // NEW SAAS FEATURE: Added 'roulette' to display mode[cite: 3]
+  const [displayMode, setDisplayMode] = useState<"pregame" | "raffle" | "qr" | "games" | "roulette">("raffle");
   const [windowSize, setWindowSize] = useState({ width: 0, height: 0 });
 
   const [winner, setWinner] = useState<any>(null);
@@ -32,6 +33,9 @@ export default function ProjectorPage() {
   const [timerStatus, setTimerStatus] = useState<"idle" | "running" | "paused">("idle");
 
   const baseUrl = "https://event-master-saas.vercel.app";
+
+  // NEW SAAS FEATURE: All Guests Array for Roulette and Galleries
+  const [allGuests, setAllGuests] = useState<any[]>([]);
 
   // Helper to apply Dynamic Colors
   const getThemeColors = () => {
@@ -49,14 +53,13 @@ export default function ProjectorPage() {
     switch (shape) {
       case "square": return "rounded-none";
       case "rounded": return "rounded-3xl";
+      // NEW SAAS FEATURE: Added new shapes
+      case "star": return "shape-star";
+      case "heart": return "shape-heart";
+      case "cloud": return "shape-cloud";
       default: return "rounded-full"; 
     }
   };
-
-  // 🛠️ DIAGNOSTIC: Monitor React State Changes
-  useEffect(() => {
-    console.log("🛠️ DIAGNOSTIC [State] -> Current Theme:", theme, "| Current Shape:", shape, "| Background URL:", bgImage);
-  }, [theme, shape, bgImage]);
 
   // 1. GET THE EVENT ID & STYLING CONFIG
   useEffect(() => {
@@ -72,28 +75,26 @@ export default function ProjectorPage() {
       }
       setEventId(eventData.id);
 
-      console.log("🛠️ DIAGNOSTIC [DB Fetch] -> Requesting config for Event ID:", eventData.id);
-      
-      const { data: configData, error: configError } = await supabase.from("raffle_config").select("color_theme, card_shape, display_mode, landscape_url").eq("event_id", eventData.id).single();
-      
-      if (configError) {
-          console.error("🛠️ DIAGNOSTIC [DB Error] -> Failed to fetch config:", configError);
-      }
+      // Fetch config
+      const { data: configData } = await supabase.from("raffle_config").select("color_theme, card_shape, display_mode, landscape_url, show_roulette").eq("event_id", eventData.id).single();
       
       if (configData) {
-          console.log("🛠️ DIAGNOSTIC [DB Success] -> Initial Config Loaded:", configData);
           if (configData.color_theme) setTheme(configData.color_theme);
           if (configData.card_shape) setShape(configData.card_shape);
           if (configData.display_mode) setViewMode(configData.display_mode);
+          if (configData.show_roulette) setDisplayMode("roulette"); // Check initial roulette state
           
           if (configData.landscape_url && configData.landscape_url.trim() !== "") {
               setBgImage(configData.landscape_url);
           }
       }
+
+      // Fetch all eligible guests for the Roulette wheel
+      const { data: guestsData } = await supabase.from("guests").select("*").eq("event_id", eventData.id).eq("status", "eligible");
+      if (guestsData) setAllGuests(guestsData);
     };
 
     if (eventSlug) fetchEventData();
-
     return () => window.removeEventListener("resize", handleResize);
   }, [eventSlug]);
 
@@ -173,11 +174,10 @@ export default function ProjectorPage() {
         "postgres_changes", 
         { event: "UPDATE", schema: "public", table: "raffle_config", filter: `event_id=eq.${eventId}` }, 
         (payload: any) => {
-            console.log("🛠️ DIAGNOSTIC [WebSocket] -> Live Update Received from Admin:", payload.new);
-            
             if (payload.new.color_theme) setTheme(payload.new.color_theme);
             if (payload.new.card_shape) setShape(payload.new.card_shape);
             if (payload.new.display_mode) setViewMode(payload.new.display_mode);
+            if (payload.new.show_roulette) setDisplayMode("roulette");
             
             if (payload.new.landscape_url !== undefined) {
                 if (payload.new.landscape_url && payload.new.landscape_url.trim() !== "") {
@@ -187,15 +187,23 @@ export default function ProjectorPage() {
                 }
             }
         }
-      ).subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-              console.log("🛠️ DIAGNOSTIC [WebSocket] -> Config channel successfully connected.");
-          }
-      });
+      ).subscribe();
+
+    // LISTEN FOR NEW GUESTS FOR ROULETTE WHEEL
+    const guestSub = supabase.channel(`guest_updates_${eventId}`).on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "guests", filter: `event_id=eq.${eventId}` },
+      (payload: any) => {
+        if (payload.new.status === "eligible") {
+          setAllGuests(prev => [...prev, payload.new]);
+        }
+      }
+    ).subscribe();
 
     return () => { 
       supabase.removeChannel(channel); 
       supabase.removeChannel(configSub);
+      supabase.removeChannel(guestSub);
     };
   }, [eventId]); 
 
@@ -210,21 +218,61 @@ export default function ProjectorPage() {
     );
   }
 
-  // 🛠️ DIAGNOSTIC: Check the computed styles right before rendering
   const computedMainStyle = {
     ...(bgImage ? { backgroundImage: `url('${bgImage}')`, backgroundSize: 'cover', backgroundPosition: 'center' } : {}),
     cursor: "url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"32\" height=\"32\" viewBox=\"0 0 32 32\"><circle cx=\"16\" cy=\"16\" r=\"10\" fill=\"%23a855f7\" opacity=\"0.8\"/><circle cx=\"16\" cy=\"16\" r=\"6\" fill=\"%23ffffff\"/></svg>') 16 16, auto" 
   };
-  console.log("🛠️ DIAGNOSTIC [Render] -> Applying Inline Styles:", computedMainStyle);
+
+  // Helper for generating the Roulette Wheel colors
+  const generateConicGradient = () => {
+    if (allGuests.length === 0) return "red 0% 100%";
+    const colors = ['#FF4136', '#FF851B', '#FFDC00', '#2ECC40', '#0074D9', '#B10DC9'];
+    const sliceSize = 100 / allGuests.length;
+    return allGuests.map((_, i) => `${colors[i % colors.length]} ${i * sliceSize}% ${(i + 1) * sliceSize}%`).join(', ');
+  };
 
   return (
     <div 
       className={`fixed inset-0 w-screen h-screen flex flex-col items-center justify-center p-4 md:p-8 overflow-hidden ${!bgImage ? themeStyles.bg : "bg-gray-900"}`} 
       style={computedMainStyle}
     >
+      {/* GLOBAL CSS FOR NEW SHAPES */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        .shape-star { clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
+        .shape-heart { mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>'); mask-size: cover; mask-position: center; }
+        .shape-cloud { mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.36 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>'); mask-size: cover; mask-position: center; transform: scale(1.1); }
+      `}} />
       
-      {/* PREGAME BUBBLES */}
-      {displayMode === "pregame" && eventId && <PregameBubbles eventId={eventId} shapeClass={getShapeClass()} themeStyles={themeStyles} />}
+      {/* NEW SAAS FEATURE: THE GIANT ROULETTE WHEEL */}
+      {displayMode === "roulette" && (
+        <div className="z-50 flex flex-col items-center justify-center animate-in zoom-in duration-500">
+           <div className="relative w-[600px] h-[600px] lg:w-[800px] lg:h-[800px]">
+              {/* Pointer */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-8 w-0 h-0 border-l-[30px] border-l-transparent border-r-[30px] border-r-transparent border-t-[60px] border-t-white z-20 drop-shadow-2xl" />
+              {/* Wheel */}
+              <div 
+                className={`w-full h-full rounded-full border-[16px] border-white shadow-[0_0_50px_rgba(0,0,0,0.8)] transition-transform ease-out ${isSpinning ? 'duration-[5000ms] rotate-[3600deg]' : 'duration-1000 rotate-0'}`}
+                style={{ background: `conic-gradient(${generateConicGradient()})` }}
+              >
+                {/* Inner Center Circle */}
+                <div className="absolute inset-0 m-auto w-32 h-32 bg-white rounded-full shadow-inner flex items-center justify-center border-8 border-gray-200">
+                  <span className="text-4xl">🎡</span>
+                </div>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* PREGAME BUBBLES (UPDATED WITH GALLERY MODES) */}
+      {displayMode === "pregame" && eventId && (
+         <PregameBubbles 
+            eventId={eventId} 
+            shapeClass={getShapeClass()} 
+            themeStyles={themeStyles} 
+            viewMode={viewMode}
+            allGuests={allGuests}
+         />
+      )}
 
       {/* QR DISPLAY */}
       {displayMode === "qr" && (
@@ -249,6 +297,7 @@ export default function ProjectorPage() {
         </div>
       )}
 
+      {/* GAMES DISPLAY */}
       {displayMode === "games" && activeGame && (
         <div className="bg-green-400 text-green-900 py-8 px-8 lg:py-16 lg:px-12 rounded-[4rem] shadow-2xl text-center border-8 border-green-200 animate-in zoom-in duration-700 w-full max-w-6xl mx-auto flex flex-col items-center justify-center relative z-10 max-h-[90vh]">
             <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white to-transparent pointer-events-none"></div>
@@ -261,6 +310,7 @@ export default function ProjectorPage() {
         </div>
       )}
 
+      {/* RAFFLE DISPLAY */}
       {displayMode === "raffle" && (
         <>
           {winner && !isSpinning && !shuffleData && (
@@ -331,56 +381,30 @@ export default function ProjectorPage() {
   );
 }
 
-// --- SUB-COMPONENT: ISOLATED SAAS BUBBLES ---
-function PregameBubbles({ eventId, shapeClass, themeStyles }: { eventId: number, shapeClass: string, themeStyles: any }) {
-  const [guests, setGuests] = useState<any[]>([]);
+// --- SUB-COMPONENT: ISOLATED SAAS PREGAME WITH GALLERY MODES ---
+function PregameBubbles({ eventId, shapeClass, themeStyles, viewMode, allGuests }: { eventId: number, shapeClass: string, themeStyles: any, viewMode: string, allGuests: any[] }) {
+  // Original Bubble Logic
+  const [bubbles, setBubbles] = useState<any[]>([]);
   const guestsRef = useRef<any[]>([]);
   const nextGuestIndex = useRef(0);
-  const [bubbles, setBubbles] = useState<any[]>([]);
   const priorityQueueRef = useRef<any[]>([]);
-  
   const MAX_BUBBLES = 5; 
 
   useEffect(() => {
-    const fetchGuests = async () => {
-      const { data } = await supabase.from("guests").select("*").eq("event_id", eventId).order("id", { ascending: true });
-      if (data) {
-          setGuests(data);
-          guestsRef.current = data;
-      }
-    };
-    fetchGuests();
-
-    const sub = supabase.channel(`realtime_guests_${eventId}`).on(
-      "postgres_changes", 
-      { event: "INSERT", schema: "public", table: "guests", filter: `event_id=eq.${eventId}` }, 
-      (payload) => {
-        setGuests((prev) => {
-            const updated = [...prev, payload.new];
-            guestsRef.current = updated;
-            priorityQueueRef.current.push(payload.new);
-            return updated;
-        });
-      }
-    ).subscribe();
-
-    return () => { supabase.removeChannel(sub); };
-  }, [eventId]);
-
-  useEffect(() => {
-    if (guests.length > 0 && bubbles.length === 0) {
-        const slotsToCreate = Math.min(MAX_BUBBLES, guests.length || MAX_BUBBLES);
+    guestsRef.current = allGuests;
+    if (allGuests.length > 0 && bubbles.length === 0 && viewMode === "grid") { // Only init bubbles if in grid/bubble mode
+        const slotsToCreate = Math.min(MAX_BUBBLES, allGuests.length || MAX_BUBBLES);
         const initialBubbles = Array.from({ length: slotsToCreate }).map((_, i) => {
-            const g = guests[nextGuestIndex.current % guests.length];
+            const g = allGuests[nextGuestIndex.current % allGuests.length];
             nextGuestIndex.current++;
             return { slotId: i, guest: g, left: i * 17 + 8, duration: 14 + Math.random() * 8, delay: i * 3 };
         });
         setBubbles(initialBubbles);
     }
-  }, [guests, bubbles.length]);
+  }, [allGuests, bubbles.length, viewMode]);
 
   const handleIteration = (slotId: number) => {
-      if (guestsRef.current.length === 0) return;
+      if (guestsRef.current.length === 0 || viewMode !== "grid") return;
       setBubbles(prev => prev.map(b => {
           if (b.slotId === slotId) {
               let nextG;
@@ -395,6 +419,66 @@ function PregameBubbles({ eventId, shapeClass, themeStyles }: { eventId: number,
       }));
   };
 
+  // Gallery View Renderers
+  if (viewMode === "carousel") {
+    return (
+      <div className="absolute inset-x-0 bottom-20 z-40 px-10">
+         <div className="flex overflow-x-auto snap-x snap-mandatory gap-8 pb-8 pt-4 scrollbar-hide items-end h-80">
+            {allGuests.map(g => (
+               <div key={g.id} className="snap-center shrink-0 animate-in slide-in-from-bottom duration-500">
+                  <img src={g.photo_url} className={`w-56 h-56 object-cover border-8 border-white shadow-[0_0_30px_rgba(255,255,255,0.5)] ${shapeClass}`} />
+                  <p className="text-center text-white font-black uppercase mt-4 text-2xl drop-shadow-md">{g.nickname}</p>
+               </div>
+            ))}
+         </div>
+      </div>
+    );
+  }
+
+  if (viewMode === "masonry") {
+    return (
+      <div className="absolute inset-0 z-30 p-12 overflow-hidden bg-black/40 backdrop-blur-sm">
+         <div className="columns-3 md:columns-5 lg:columns-7 gap-6 space-y-6">
+            {allGuests.map(g => (
+               <div key={g.id} className="relative group animate-in fade-in duration-1000">
+                  <img src={g.photo_url} className={`w-full object-cover border-4 border-white/50 shadow-xl ${shapeClass}`} />
+                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/80 px-4 py-1 rounded-full border border-white/30">
+                    <p className="text-white font-black text-xs uppercase">{g.nickname}</p>
+                  </div>
+               </div>
+            ))}
+         </div>
+      </div>
+    );
+  }
+
+  if (viewMode === "spotlight") {
+    const latestGuest = allGuests[allGuests.length - 1];
+    const olderGuests = allGuests.slice(0, -1);
+    return (
+      <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/70 backdrop-blur-md">
+         {/* Background blurred faces */}
+         <div className="absolute inset-0 flex flex-wrap justify-center items-center gap-4 opacity-30 blur-[2px] p-8">
+            {olderGuests.map(g => (
+               <img key={g.id} src={g.photo_url} className={`w-32 h-32 object-cover border-2 border-white/20 ${shapeClass}`} />
+            ))}
+         </div>
+         {/* Active Spotlight */}
+         {latestGuest && (
+           <div className="relative z-50 animate-in zoom-in duration-500 flex flex-col items-center">
+              <div className="absolute -inset-20 bg-white/20 blur-3xl rounded-full" />
+              <img src={latestGuest.photo_url} className={`w-96 h-96 object-cover border-8 border-white shadow-[0_0_100px_rgba(255,255,255,0.8)] ${shapeClass}`} />
+              <div className="mt-8 bg-white text-black px-12 py-4 rounded-full shadow-2xl">
+                 <p className="font-black text-4xl uppercase tracking-widest">{latestGuest.nickname}</p>
+                 <p className="text-center font-bold text-gray-500 uppercase">Just Joined!</p>
+              </div>
+           </div>
+         )}
+      </div>
+    );
+  }
+
+  // Default Original Bubbles
   return (
     <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
       <style dangerouslySetInnerHTML={{ __html: `@keyframes floatContinuous { 0% { top: 120vh; opacity: 0; transform: scale(0.8); } 5% { opacity: 1; transform: scale(1); } 95% { opacity: 1; } 100% { top: -40vh; opacity: 0; } }` }} />
