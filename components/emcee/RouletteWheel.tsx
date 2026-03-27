@@ -1,13 +1,19 @@
-// RouletteWheel.tsx (Projector Component)
 import { useState } from 'react';
 
-export default function RouletteWheel({ guests, winner }) {
+// 1. Define exactly what props TypeScript should expect
+interface RouletteWheelProps {
+  guests: any[]; 
+  winner?: any;
+}
+
+// 2. Apply the interface to the component
+export default function RouletteWheel({ guests, winner }: RouletteWheelProps) {
   const [spinning, setSpinning] = useState(false);
 
   // Generates a colorful striped background based on guest count
   const colors = ['#FF4136', '#FF851B', '#FFDC00', '#2ECC40', '#0074D9', '#B10DC9'];
-  const sliceSize = 100 / (guests.length || 1);
-  const conicString = guests.map((_, i) => `${colors[i % colors.length]} ${i * sliceSize}% ${(i + 1) * sliceSize}%`).join(', ');
+  const sliceSize = 100 / (guests?.length || 1);
+  const conicString = (guests || []).map((_, i) => `${colors[i % colors.length]} ${i * sliceSize}% ${(i + 1) * sliceSize}%`).join(', ');
 
   const handleSpin = () => {
     setSpinning(true);
