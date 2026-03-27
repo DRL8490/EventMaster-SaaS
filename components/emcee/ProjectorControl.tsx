@@ -1,13 +1,21 @@
 "use client";
 import React from "react";
+import { useParams } from "next/navigation";
 
 export default function ProjectorControl({ activeScreen, changeScreen, channel, setPrizeDisplayed, setTimerStatus }: any) {
+  // SAAS FIX: Grab the slug from the URL to dynamically build the correct QR links
+  const params = useParams();
+  const eventSlug = params?.slug || "";
+  
+  // SAAS FIX: Hardcode the Vercel URL so the QR pattern perfectly matches the Admin & Projector pages
+  const baseUrl = "https://event-master-saas.vercel.app";
+
   return (
     <div className="bg-white rounded-3xl shadow-xl p-6 border-4 border-gray-800 flex flex-col">
         <h2 className="text-sm font-black text-gray-800 uppercase tracking-widest mb-4">📺 Projector Screen Control</h2>
         <div className="grid grid-cols-4 gap-3 mb-6">
             <button onClick={() => changeScreen("pregame")} className={`py-4 rounded-xl font-black text-xs md:text-sm uppercase transition-all ${activeScreen === "pregame" ? "bg-blue-600 text-white shadow-inner" : "bg-gray-100 text-gray-500 hover:bg-blue-100"}`}>🎈 Pregame</button>
-            <button onClick={() => changeScreen("raffle")} className={`py-4 rounded-xl font-black text-xs md:text-sm uppercase transition-all ${activeScreen === "raffle" ? "bg-yellow-500 text-yellow-900 shadow-inner" : "bg-gray-100 text-gray-500 hover:bg-yellow-100"}`}>🎰 Raffle</button>
+            <button onClick={() => changeScreen("raffle")} className={`py-4 rounded-xl font-black text-xs md:text-sm uppercase transition-all ${activeScreen === "raffle" ? "bg-yellow-500 text-yellow-900 shadow-inner" : "bg-gray-100 text-gray-500 hover:bg-yellow-100"}`}>🎟️ Raffle</button>
             <button onClick={() => changeScreen("games")} className={`py-4 rounded-xl font-black text-xs md:text-sm uppercase transition-all ${activeScreen === "games" ? "bg-green-500 text-white shadow-inner" : "bg-gray-100 text-gray-500 hover:bg-green-100"}`}>🎲 Games</button>
             <button onClick={() => changeScreen("qr")} className={`py-4 rounded-xl font-black text-xs md:text-sm uppercase transition-all ${activeScreen === "qr" ? "bg-purple-600 text-white shadow-inner" : "bg-gray-100 text-gray-500 hover:bg-purple-100"}`}>📱 QR Code</button>
         </div>
@@ -37,14 +45,22 @@ export default function ProjectorControl({ activeScreen, changeScreen, channel, 
 
             {/* UPGRADED QR PREVIEW */}
             {activeScreen === "qr" && (
-                <div className="w-full h-full bg-gray-50 flex items-center justify-between px-12 py-4 gap-8">
+                <div className="w-full h-full bg-gray-50 flex items-center justify-center px-6 py-4 gap-12">
                     <div className="flex flex-col items-center text-center">
                         <h2 className="text-[10px] font-black text-gray-800 uppercase tracking-widest mb-2">Winners QR</h2>
-                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(typeof window !== 'undefined' ? window.location.origin + '/memory' : '')}`} alt="Memory QR Preview" className="w-20 h-20 rounded-xl shadow-sm border-2 border-white" />
+                        <img 
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${baseUrl}/${eventSlug}/memory`)}`} 
+                            alt="Memory QR Preview" 
+                            className="w-24 h-24 rounded-xl shadow-sm border-2 border-white" 
+                        />
                     </div>
                     <div className="flex flex-col items-center text-center">
-                        <h2 className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Download/Upload</h2>
-                        <img src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent('https://drive.google.com/drive/folders/1i1ItVCpTjg-GVtwEbRLv9RJjAcgilGgS?usp=sharing')}`} alt="Drive QR Preview" className="w-20 h-20 rounded-xl shadow-sm border-2 border-white" />
+                        <h2 className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-2">Photo Drop</h2>
+                        <img 
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`${baseUrl}/${eventSlug}/upload`)}`} 
+                            alt="Upload QR Preview" 
+                            className="w-24 h-24 rounded-xl shadow-sm border-2 border-white" 
+                        />
                     </div>
                 </div>
             )}
