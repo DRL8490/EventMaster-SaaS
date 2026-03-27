@@ -2,7 +2,8 @@
 import React, { useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
-export default function RsvpsTab({ eventId, rsvps, fetchData, executeDbAction, uniqueReferrals }: any) {
+// FIXED: Removed eventId from props
+export default function RsvpsTab({ rsvps, fetchData, executeDbAction, uniqueReferrals }: any) {
   const [rsvpFilter, setRsvpFilter] = useState("All");
   const [rsvpReferralFilter, setRsvpReferralFilter] = useState("All");
   const [editingRsvpId, setEditingRsvpId] = useState<number | null>(null);
@@ -16,8 +17,8 @@ export default function RsvpsTab({ eventId, rsvps, fetchData, executeDbAction, u
   };
 
   const handleSaveRsvp = async (id: number) => {
-      // SAAS LOCK: Ensure we only update if the eventId matches!
-      await executeDbAction(supabase.from("rsvps").update(editRsvpData).eq("id", id).eq("event_id", eventId));
+      // FIXED: Target uniquely by id only
+      await executeDbAction(supabase.from("rsvps").update(editRsvpData).eq("id", id));
       setEditingRsvpId(null);
   };
 
@@ -106,8 +107,8 @@ export default function RsvpsTab({ eventId, rsvps, fetchData, executeDbAction, u
                                     <td className="p-4 text-center space-x-2">
                                         <button onClick={() => handleEditRsvpClick(r)} className="text-blue-600 font-bold text-sm bg-blue-50 hover:bg-blue-500 hover:text-white px-4 py-2 rounded-lg transition-all">✏️ Edit</button>
                                         
-                                        {/* SAAS LOCK: Ensure we only delete if the eventId matches! */}
-                                        <button onClick={() => window.confirm(`Delete RSVP?`) && executeDbAction(supabase.from("rsvps").delete().eq("id", r.id).eq("event_id", eventId))} className="text-red-600 font-bold text-sm bg-red-50 hover:bg-red-500 hover:text-white px-4 py-2 rounded-lg transition-all">🗑️</button>
+                                        {/* FIXED: Target uniquely by id only */}
+                                        <button onClick={() => window.confirm(`Delete RSVP?`) && executeDbAction(supabase.from("rsvps").delete().eq("id", r.id))} className="text-red-600 font-bold text-sm bg-red-50 hover:bg-red-500 hover:text-white px-4 py-2 rounded-lg transition-all">🗑️</button>
                                     </td>
                                 </>
                             )}
