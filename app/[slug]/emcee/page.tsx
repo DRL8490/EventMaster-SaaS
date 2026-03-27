@@ -32,7 +32,9 @@ export default function EmceePage() {
   const [winnersCount, setWinnersCount] = useState(0);
   
   const [prizeDisplayed, setPrizeDisplayed] = useState(false);
-  const [activeScreen, setActiveScreen] = useState<"pregame"|"raffle"|"games"|"qr">("raffle");
+  
+  // NEW SAAS FEATURE: Added 'roulette' to active screen states
+  const [activeScreen, setActiveScreen] = useState<"pregame"|"raffle"|"games"|"qr"|"roulette">("raffle");
 
   const [timer, setTimer] = useState(60);
   const [timerStatus, setTimerStatus] = useState<"idle" | "running" | "paused">("idle");
@@ -184,11 +186,15 @@ export default function EmceePage() {
   const pauseTimer = () => { setTimerStatus("paused"); channel?.send({ type: "broadcast", event: "timer_sync", payload: { time: timer, status: "paused" }}); };
   const resumeTimer = () => { setTimerStatus("running"); channel?.send({ type: "broadcast", event: "timer_sync", payload: { time: timer, status: "running" }}); };
 
-  // CLEANED UP BUGGY PAYLOAD
-  const changeScreen = async (mode: "pregame" | "raffle" | "games" | "qr") => {
+  // CLEANED UP BUGGY PAYLOAD (Now handles Roulette)
+  const changeScreen = async (mode: "pregame" | "raffle" | "games" | "qr" | "roulette") => {
     setActiveScreen(mode);
     if (channel) {
         await channel.send({ type: "broadcast", event: "set_display", payload: { mode: mode } });
+    }
+    // Also save roulette state to database so late joiners see it
+    if (eventId) {
+      await supabase.from('raffle_config').update({ show_roulette: mode === "roulette" }).eq('event_id', eventId);
     }
   };
 
@@ -354,6 +360,16 @@ export default function EmceePage() {
             setPrizeDisplayed={setPrizeDisplayed} 
             setTimerStatus={setTimerStatus} 
           />
+
+          {/* NEW SAAS FEATURE: Roulette Wheel Trigger */}
+          <div className="bg-white rounded-3xl shadow-xl p-6 border-2 border-gray-200 text-center">
+             <button 
+                onClick={() => changeScreen(activeScreen === "roulette" ? "raffle" : "roulette")} 
+                className={`px-8 py-4 rounded-xl font-black text-xl shadow-xl transition-all ${activeScreen === "roulette" ? "bg-red-600 text-white hover:bg-red-700" : "bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600"}`}
+             >
+                {activeScreen === "roulette" ? "🛑 Close Roulette Wheel" : "🎡 Send Roulette to Projector"}
+             </button>
+          </div>
 
           {activeScreen === "games" && (
             <GamesControl 

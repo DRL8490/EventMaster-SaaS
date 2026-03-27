@@ -89,6 +89,9 @@ export default function BackgroundsTab({ eventId, bgUrls, files, setFiles, handl
                         <option value="bubble">🫧 Bubble (Circle)</option>
                         <option value="rounded">🎴 Card (Rounded Square)</option>
                         <option value="square">⬛ Sharp Square</option>
+                        <option value="star">⭐ Star</option>
+                        <option value="heart">❤️ Heart</option>
+                        <option value="cloud">☁️ Cloud</option>
                     </select>
                 </div>
 
@@ -97,6 +100,8 @@ export default function BackgroundsTab({ eventId, bgUrls, files, setFiles, handl
                     <select value={mode} onChange={e => setMode(e.target.value)} className="w-full p-3 rounded-xl border-2 border-gray-300 font-bold outline-none focus:border-purple-500 cursor-pointer">
                         <option value="grid">🔲 Grid (Wall of Fame)</option>
                         <option value="carousel">🎠 Carousel (Sliding)</option>
+                        <option value="masonry">🧱 Masonry (Waterfall)</option>
+                        <option value="spotlight">🔦 Spotlight (Focus)</option>
                     </select>
                 </div>
             </div>
