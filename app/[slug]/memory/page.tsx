@@ -170,8 +170,8 @@ export default function MemoryPage() {
   return (
     <div className="min-h-[100dvh] bg-gray-900 font-sans text-white p-4 md:p-8 pb-20 selection:bg-purple-500 relative">
       
-      {/* PHASE 1 FIX: THE PORTRAIT LOCK OVERLAY */}
-      <div className="md:hidden portrait:flex fixed inset-0 z-[999] bg-gray-900/95 flex-col items-center justify-center text-center p-8 text-white backdrop-blur-xl">
+{/* PHASE 1 FIX: THE PORTRAIT LOCK OVERLAY (Now Bulletproof) */}
+      <div className="hidden portrait:flex landscape:hidden md:!hidden fixed inset-0 z-[999] bg-gray-900/95 flex-col items-center justify-center text-center p-8 text-white backdrop-blur-xl">
           <div className="animate-[spin_2s_ease-in-out_infinite] mb-8 text-8xl">📱</div>
           <h2 className="text-4xl font-black uppercase tracking-widest mb-4 text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-yellow-400">Rotate Device</h2>
           <p className="text-gray-300 font-bold max-w-xs text-lg leading-relaxed">Please turn your phone sideways (landscape mode) to view and download your high-resolution memory cards!</p>
