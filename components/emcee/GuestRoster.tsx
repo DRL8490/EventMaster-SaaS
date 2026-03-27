@@ -12,7 +12,7 @@ export default function GuestRoster({ loading, guests, pendingProofGuest, handle
             <thead>
               <tr className="bg-gray-100 text-gray-600 uppercase text-xs tracking-wider">
                   <th className="p-3 rounded-tl-xl">Guest</th>
-                  <th className="p-3 text-center">Referral</th>
+                  <th className="p-3 text-center">Group</th>
                   <th className="p-3 text-center rounded-tr-xl">Status & Proof</th>
               </tr>
             </thead>

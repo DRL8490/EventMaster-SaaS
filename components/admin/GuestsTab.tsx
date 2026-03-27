@@ -53,7 +53,7 @@ export default function GuestsTab({ eventId, guests, fetchData, executeDbAction,
                 </div>
             </div>
             <div className="flex-1">
-                <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Filter by Referral</p>
+                <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Filter by Group</p>
                 <select value={guestReferralFilter} onChange={(e) => setGuestReferralFilter(e.target.value)} className="w-full p-3 rounded-xl border-2 border-gray-200 font-bold outline-none focus:border-blue-500 bg-white cursor-pointer">
                     {uniqueReferrals?.map((ref: string) => <option key={ref} value={ref}>{ref}</option>)}
                 </select>
@@ -67,7 +67,7 @@ export default function GuestsTab({ eventId, guests, fetchData, executeDbAction,
                         <th className="p-4 rounded-tl-xl w-24">Photo</th>
                         <th className="p-4 w-1/4">Details <span className="text-blue-600 font-black ml-2">(Showing: {filteredGuests.length})</span></th>
                         <th className="p-4 text-center">Category</th>
-                        <th className="p-4 text-center">Referral</th>
+                        <th className="p-4 text-center">Group</th>
                         <th className="p-4 text-center">Status</th>
                         <th className="p-4 rounded-tr-xl text-center">Actions</th>
                     </tr>

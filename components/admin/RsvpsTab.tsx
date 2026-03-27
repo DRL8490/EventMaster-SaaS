@@ -59,7 +59,7 @@ export default function RsvpsTab({ eventId, rsvps, fetchData, executeDbAction, u
                 </div>
             </div>
             <div className="flex-1">
-                <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Filter by Referral</p>
+                <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Filter by Group</p>
                 <select value={rsvpReferralFilter} onChange={(e) => setRsvpReferralFilter(e.target.value)} className="w-full p-3 rounded-xl border-2 border-gray-200 font-bold outline-none focus:border-blue-500 bg-white cursor-pointer">
                     {uniqueReferrals.map((ref: string) => <option key={ref} value={ref}>{ref}</option>)}
                 </select>
@@ -72,7 +72,7 @@ export default function RsvpsTab({ eventId, rsvps, fetchData, executeDbAction, u
                     <tr className="bg-gray-100 text-gray-600 uppercase text-xs tracking-wider">
                         <th className="p-4 rounded-tl-xl w-1/3">Guest Details <span className="text-blue-600 font-black ml-2">(Showing: {filteredRsvps.length})</span></th>
                         <th className="p-4 text-center">Category</th>
-                        <th className="p-4">Referral</th>
+                        <th className="p-4">Group</th>
                         <th className="p-4 rounded-tr-xl text-center">Actions</th>
                     </tr>
                 </thead>
