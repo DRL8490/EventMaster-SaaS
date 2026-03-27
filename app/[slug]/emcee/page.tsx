@@ -130,17 +130,25 @@ export default function EmceePage() {
     setLoading(false);
   };
 
-  useEffect(() => {
+useEffect(() => {
     if (isAuthenticated && eventId) {
         fetchData();
-        // SAAS WEBSOCKET: Connect to the private channel
-        const raffleChannel = supabase.channel(`raffle_${eventId}`);
-        raffleChannel.subscribe();
-        setChannel(raffleChannel);
+        
+        // 1. ADDED ACK: TRUE to force Supabase to guarantee message delivery
+        const raffleChannel = supabase.channel(`raffle_${eventId}`, {
+            config: { broadcast: { ack: true } }
+        });
+
+        // 2. RACE CONDITION FIX: Do not activate the channel until Supabase says 'SUBSCRIBED'
+        raffleChannel.subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+                setChannel(raffleChannel);
+            }
+        });
+
         return () => { supabase.removeChannel(raffleChannel); };
     }
   }, [isAuthenticated, eventId]);
-
 
   // Timer Logic
   useEffect(() => {
@@ -160,6 +168,16 @@ export default function EmceePage() {
     return () => clearInterval(interval);
   }, [timerStatus, timer, channel]);
 
+  const pauseTimer = () => { setTimerStatus("paused"); channel?.send({ type: "broadcast", event: "timer_sync", payload: { time: timer, status: "paused" }}); };
+  const resumeTimer = () => { setTimerStatus("running"); channel?.send({ type: "broadcast", event: "timer_sync", payload: { time: timer, status: "running" }}); };
+
+  // 3. CLEANED UP BUGGY PAYLOAD
+  const changeScreen = async (mode: "pregame" | "raffle" | "games" | "qr") => {
+    setActiveScreen(mode);
+    if (channel) {
+        await channel.send({ type: "broadcast", event: "set_display", payload: { mode: mode } });
+    }
+  };
   // LOGIN HANDLER
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();

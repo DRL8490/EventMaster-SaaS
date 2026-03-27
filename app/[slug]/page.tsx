@@ -50,8 +50,10 @@ export default function ProjectorPage() {
   useEffect(() => {
     if (!eventId) return;
 
-    // Notice we append the eventId to the channel name!
-    const channel = supabase.channel(`raffle_${eventId}`);
+    // ADDED ACK: TRUE to match the Emcee
+    const channel = supabase.channel(`raffle_${eventId}`, {
+        config: { broadcast: { ack: true } }
+    });
 
     channel
       .on("broadcast", { event: "set_display" }, (payload) => {
@@ -97,7 +99,6 @@ export default function ProjectorPage() {
         }
 
         const prizeCat = payload.payload.prizeCategory || "All";
-        // SAAS QUERY: Only fetch guests for THIS specific party
         let query = supabase.from("guests").select("*").eq("event_id", eventId).eq("status", "eligible");
         
         if (prizeCat !== "All") {
@@ -146,18 +147,19 @@ export default function ProjectorPage() {
         setPrizeName(""); 
         setTimerStatus("idle");
         
-        if (displayMode === "games") {
-             setDisplayMode("pregame");
-             setActiveGame(null);
-        }
+        // DEPENDENCY LOOP FIX: Use a functional state update so React doesn't destroy the channel!
+        setDisplayMode(prev => {
+            if (prev === "games") return "pregame";
+            return prev;
+        });
+        setActiveGame(null);
       })
       .subscribe();
 
     return () => { 
       supabase.removeChannel(channel); 
     };
-  }, [eventId, displayMode]);
-
+  }, [eventId]); // <--- MASSIVE FIX: Removed `displayMode` from this array!
   if (invalidEvent) return <div className="fixed inset-0 bg-black flex items-center justify-center text-red-500 text-4xl font-black uppercase">Event Not Found</div>;
 
   if (!audioUnlocked) {
