@@ -10,6 +10,9 @@ export default function GuestPage() {
   const params = useParams();
   const eventSlug = params.slug; 
   const [eventId, setEventId] = useState<number | null>(null);
+  
+  // PHASE 1 FIX: Added Event Name State
+  const [eventName, setEventName] = useState("");
   const [invalidEvent, setInvalidEvent] = useState(false);
 
   const [fullName, setFullName] = useState("");
@@ -34,9 +37,10 @@ export default function GuestPage() {
   // 1. GET THE EVENT ID (Runs only once when the page loads)
   useEffect(() => {
     const fetchEventId = async () => {
+      // PHASE 1 FIX: Selected "name" from the database
       const { data: eventData } = await supabase
         .from("events")
-        .select("id")
+        .select("id, name")
         .eq("slug", eventSlug)
         .single();
 
@@ -46,6 +50,9 @@ export default function GuestPage() {
         return;
       }
       setEventId(eventData.id);
+      
+      // PHASE 1 FIX: Saved the event name to state
+      setEventName(eventData.name);
     };
 
     if (eventSlug) fetchEventId();
@@ -53,7 +60,7 @@ export default function GuestPage() {
 
   // 2. FETCH DATA & SUBSCRIBE (Runs only AFTER we have the eventId)
   useEffect(() => {
-    if (!eventId) return; // Wait until Phase 1 is done!
+    if (!eventId) return;
 
     const fetchPartyData = async () => {
       const { data: config } = await supabase.from("raffle_config").select("*").eq("event_id", eventId).single();
@@ -194,7 +201,6 @@ export default function GuestPage() {
           <div className="bg-white/95 backdrop-blur-md p-6 rounded-[2.5rem] shadow-2xl border-4 border-green-400 text-center animate-in zoom-in duration-500 max-w-sm w-full flex flex-col items-center relative">
             <h2 className="text-2xl font-black text-green-600 uppercase leading-none mb-4">You're Checked In!</h2>
             
-            {/* --- FIX START --- */}
             {/* New Parent Container (square) controls position and animation */}
             <div className="relative w-40 h-40 mx-auto animate-bounce mb-4 group">
               
@@ -206,7 +212,6 @@ export default function GuestPage() {
               </div>
 
               {/* 2. The Unclipped Watermark (positioned relative to the parent, floats on top) */}
-              {/* This is z-10 so it's over the border, and uses negative top/left to "pin" it outside the main circle slightly. Added subtle tilt for magic! */}
               <div className="absolute -top-1 -left-1 bg-blue-600 text-white font-black px-2.5 py-1 rounded-full text-[10px] uppercase shadow-xl border-2 border-white z-10 transform -rotate-12 transition-transform group-hover:rotate-0">
                 {category}
               </div>
@@ -214,7 +219,6 @@ export default function GuestPage() {
               {/* Subtle sheen overlay on hover */}
               <div className="absolute inset-0 rounded-full bg-white opacity-0 group-hover:opacity-20 transition-opacity z-0"></div>
             </div>
-            {/* --- FIX END --- */}
 
             <p className="text-gray-600 font-bold mb-6 text-sm">Look for your bubble on the big screen!</p>
             <button onClick={() => { setIsSuccess(false); setFullName(""); setNickname(""); setCategory("Adults"); setPhoto(null); }} className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-black text-sm uppercase shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 relative z-20">
@@ -224,7 +228,12 @@ export default function GuestPage() {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="flex-1 min-h-0 w-full flex flex-col justify-between px-4 py-6" style={{ backgroundImage: bgImageUrl ? `url(${bgImageUrl})` : 'none', backgroundSize: "cover", backgroundPosition: "center" }}>
+          
           <div className="text-center shrink-0 mb-4 pt-4">
+            {/* PHASE 1 FIX: Added Event Name Title */}
+            <h2 className="text-xl md:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500 uppercase tracking-widest text-center mb-2 drop-shadow-sm">
+              {eventName}
+            </h2>
             <h1 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">Live Door Registration</h1>
           </div>
           

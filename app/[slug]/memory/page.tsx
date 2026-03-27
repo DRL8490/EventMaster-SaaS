@@ -20,9 +20,8 @@ export default function MemoryPage() {
   
   const [loading, setLoading] = useState(true);
 
-// FESTIVE WATERMARK COMPONENTS (Fully Responsive, Percentage-Based, Line-Capped)
+  // FESTIVE WATERMARK COMPONENTS
   const LargeWatermark = () => {
-    // Dynamically shrink the font if the event name is super long
     const textSize = eventName.length > 20 ? "text-[5px] md:text-[8px]" : "text-[6px] md:text-[10px]";
     
     return (
@@ -33,7 +32,6 @@ export default function MemoryPage() {
   };
 
   const TinyWatermark = () => {
-    // Aggressive shrink for the tiny bubble watermark
     const textSize = eventName.length > 20 ? "text-[4px] md:text-[6px]" : "text-[5px] md:text-[8px]";
     
     return (
@@ -43,7 +41,7 @@ export default function MemoryPage() {
     );
   };
 
-  // THE ULTIMATE MOBILE FIX: Cache-Busting Fetch + Base64 + Double Render + RAM Saver
+  // CAPTURE SCRIPT
   const captureAndDownload = async (elementId: string, filename: string) => {
     const element = document.getElementById(elementId);
     if (!element) return;
@@ -53,14 +51,12 @@ export default function MemoryPage() {
     if (btn) btn.innerText = "⏳";
 
     try {
-      // 1. MOBILE CORS BYPASS: Force fetch a fresh, un-cached image and convert to Base64
       const images = Array.from(element.getElementsByTagName('img'));
       const originalSrcs = images.map(img => img.src);
 
       await Promise.all(images.map(async (img) => {
         if (img.src.startsWith('http')) {
           try {
-            // The ?cb= parameter forces the phone to completely ignore its locked disk cache
             const cacheBustUrl = `${img.src}${img.src.includes('?') ? '&' : '?'}cb=${Date.now()}`;
             const res = await fetch(cacheBustUrl, { mode: 'cors', cache: 'no-store' });
             const blob = await res.blob();
@@ -80,7 +76,7 @@ export default function MemoryPage() {
 
       const config = {
           cacheBust: true, 
-          pixelRatio: 2, // Dropped from 3 to 2 to prevent mobile RAM crashes!
+          pixelRatio: 2, 
           filter: (node: any) => {
               const el = node as HTMLElement;
               if (el?.hasAttribute && el.hasAttribute('data-ignore')) {
@@ -90,18 +86,13 @@ export default function MemoryPage() {
           }
       };
 
-      // 2. THE WEBKIT HACK: iOS/Mobile Chrome needs a "warm-up" render before the real one
       await toPng(element, config).catch(() => {});
-      
-      // 3. The actual final capture
       const dataUrl = await toPng(element, config);
 
-      // 4. Restore original image URLs to keep the live site fast
       images.forEach((img, index) => {
         img.src = originalSrcs[index];
       });
 
-      // 5. Trigger the file download
       const link = document.createElement("a");
       link.href = dataUrl;
       link.download = filename;
@@ -177,7 +168,15 @@ export default function MemoryPage() {
   );
 
   return (
-    <div className="min-h-[100dvh] bg-gray-900 font-sans text-white p-4 md:p-8 pb-20 selection:bg-purple-500">
+    <div className="min-h-[100dvh] bg-gray-900 font-sans text-white p-4 md:p-8 pb-20 selection:bg-purple-500 relative">
+      
+      {/* PHASE 1 FIX: THE PORTRAIT LOCK OVERLAY */}
+      <div className="md:hidden portrait:flex fixed inset-0 z-[999] bg-gray-900/95 flex-col items-center justify-center text-center p-8 text-white backdrop-blur-xl">
+          <div className="animate-[spin_2s_ease-in-out_infinite] mb-8 text-8xl">📱</div>
+          <h2 className="text-4xl font-black uppercase tracking-widest mb-4 text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-yellow-400">Rotate Device</h2>
+          <p className="text-gray-300 font-bold max-w-xs text-lg leading-relaxed">Please turn your phone sideways (landscape mode) to view and download your high-resolution memory cards!</p>
+      </div>
+
       <div className="max-w-6xl mx-auto space-y-16">
         
         {/* HEADER */}
