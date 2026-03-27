@@ -33,54 +33,34 @@ export default function EmceePage() {
   
   const [prizeDisplayed, setPrizeDisplayed] = useState(false);
   
-  // NEW SAAS FEATURE: Added 'roulette' to active screen states
-  const [activeScreen, setActiveScreen] = useState<"pregame"|"raffle"|"games"|"qr"|"roulette">("raffle");
+  // REVERTED: strictly core screens
+  const [activeScreen, setActiveScreen] = useState<"pregame"|"raffle"|"games"|"qr">("raffle");
 
   const [timer, setTimer] = useState(60);
   const [timerStatus, setTimerStatus] = useState<"idle" | "running" | "paused">("idle");
   const [pendingProofGuest, setPendingProofGuest] = useState<any>(null);
 
-  // 1. GET THE EVENT ID & PASSCODE FROM SUPABASE
   useEffect(() => {
     const fetchEventData = async () => {
-      const { data: eventData } = await supabase
-        .from("events")
-        .select("id, passcode")
-        .eq("slug", eventSlug)
-        .single();
-
-      if (!eventData) {
-        setInvalidEvent(true);
-        return;
-      }
+      const { data: eventData } = await supabase.from("events").select("id, passcode").eq("slug", eventSlug).single();
+      if (!eventData) { setInvalidEvent(true); return; }
       setEventId(eventData.id);
       setEventPasscode(eventData.passcode);
-
-      // Check if they already logged into THIS specific event previously
-      if (sessionStorage.getItem(`host_auth_${eventData.id}`) === "true") {
-          setIsAuthenticated(true);
-      }
+      if (sessionStorage.getItem(`host_auth_${eventData.id}`) === "true") setIsAuthenticated(true);
     };
-
     if (eventSlug) fetchEventData();
   }, [eventSlug]);
 
-
-  // 2. FETCH DATA
   const fetchData = async () => {
     if (!eventId) return;
     setLoading(true);
-    
-    // SAAS QUERY: Only fetch data for THIS specific event
-    const { data: guestData, error: guestError } = await supabase.from("guests").select("*").eq("event_id", eventId); 
+    const { data: guestData } = await supabase.from("guests").select("*").eq("event_id", eventId); 
     const { data: rsvpData } = await supabase.from("rsvps").select("*").eq("event_id", eventId); 
     const { data: gameData } = await supabase.from("games").select("*").eq("event_id", eventId).order("id", { ascending: true });
 
     if (gameData) setGames(gameData);
 
-    if (guestError) {
-        console.error(guestError.message); 
-    } else if (guestData) {
+    if (guestData) {
       const rsvpList = rsvpData || []; 
       const guestsToUpdate: number[] = [];
 
@@ -88,7 +68,6 @@ export default function EmceePage() {
           const rsvp = rsvpList.find(r => r.full_name === g.full_name);
           const ref = rsvp ? (rsvp.referral || "") : "";
           let currentStatus = g.status;
-          
           if (ref.toLowerCase() === "host" && currentStatus === "eligible") {
               guestsToUpdate.push(g.id);
               currentStatus = "ineligible";
@@ -96,9 +75,7 @@ export default function EmceePage() {
           return { ...g, referral: ref, status: currentStatus };
       });
 
-      if (guestsToUpdate.length > 0) {
-          supabase.from("guests").update({ status: "ineligible" }).in("id", guestsToUpdate).then();
-      }
+      if (guestsToUpdate.length > 0) supabase.from("guests").update({ status: "ineligible" }).in("id", guestsToUpdate).then();
 
       const sortedGuests = mappedGuests.sort((a, b) => {
         const aNeedsProof = a.status === "won" && !a.proof_url;
@@ -119,41 +96,20 @@ export default function EmceePage() {
       setPendingProofGuest(missingProof || null);
     }
 
-    const { data: prizeData, error: prizeError } = await supabase
-        .from("prizes")
-        .select("*")
-        .eq("event_id", eventId)
-        .eq("status", "unclaimed")
-        .order("draw_order", { ascending: true });
-        
-    if (prizeError && prizeError.code !== "42P01") console.error("Error:", prizeError);
-    else if (prizeData) { setUnclaimedPrizes(prizeData); }
-    
+    const { data: prizeData } = await supabase.from("prizes").select("*").eq("event_id", eventId).eq("status", "unclaimed").order("draw_order", { ascending: true });
+    if (prizeData) setUnclaimedPrizes(prizeData);
     setLoading(false);
   };
 
-  // 3. BULLETPROOF WEBSOCKET CONNECTION
   useEffect(() => {
     if (isAuthenticated && eventId) {
         fetchData();
-        
-        // ADDED ACK: TRUE to force Supabase to guarantee message delivery
-        const raffleChannel = supabase.channel(`raffle_${eventId}`, {
-            config: { broadcast: { ack: true } }
-        });
-
-        // RACE CONDITION FIX: Do not activate the channel until Supabase says 'SUBSCRIBED'
-        raffleChannel.subscribe((status) => {
-            if (status === 'SUBSCRIBED') {
-                setChannel(raffleChannel);
-            }
-        });
-
+        const raffleChannel = supabase.channel(`raffle_${eventId}`, { config: { broadcast: { ack: true } } });
+        raffleChannel.subscribe((status) => { if (status === 'SUBSCRIBED') setChannel(raffleChannel); });
         return () => { supabase.removeChannel(raffleChannel); };
     }
   }, [isAuthenticated, eventId]);
 
-  // Timer Logic
   useEffect(() => {
     let interval: any;
     if (timerStatus === "running" && timer > 0) {
@@ -171,36 +127,25 @@ export default function EmceePage() {
     return () => clearInterval(interval);
   }, [timerStatus, timer, channel]);
 
-  // LOGIN HANDLER
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (eventPasscode && passcodeInput.toUpperCase() === eventPasscode.toUpperCase()) {
       sessionStorage.setItem(`host_auth_${eventId}`, "true"); 
       setIsAuthenticated(true);
     } else {
-      setAuthError("Incorrect passcode!");
-      setPasscodeInput("");
+      setAuthError("Incorrect passcode!"); setPasscodeInput("");
     }
   };
 
   const pauseTimer = () => { setTimerStatus("paused"); channel?.send({ type: "broadcast", event: "timer_sync", payload: { time: timer, status: "paused" }}); };
   const resumeTimer = () => { setTimerStatus("running"); channel?.send({ type: "broadcast", event: "timer_sync", payload: { time: timer, status: "running" }}); };
 
-  // CLEANED UP BUGGY PAYLOAD (Now handles Roulette)
-  const changeScreen = async (mode: "pregame" | "raffle" | "games" | "qr" | "roulette") => {
+  const changeScreen = async (mode: "pregame" | "raffle" | "games" | "qr") => {
     setActiveScreen(mode);
-    if (channel) {
-        await channel.send({ type: "broadcast", event: "set_display", payload: { mode: mode } });
-    }
-    // Also save roulette state to database so late joiners see it
-    if (eventId) {
-      await supabase.from('raffle_config').update({ show_roulette: mode === "roulette" }).eq('event_id', eventId);
-    }
+    if (channel) await channel.send({ type: "broadcast", event: "set_display", payload: { mode: mode } });
   };
 
-  const playSound = async (soundFile: string) => {
-    if (channel) await channel.send({ type: "broadcast", event: "play_sound", payload: { sound: soundFile } });
-  };
+  const playSound = async (soundFile: string) => { if (channel) await channel.send({ type: "broadcast", event: "play_sound", payload: { sound: soundFile } }); };
 
   const handleDemoReset = async () => {
     if (!window.confirm("🚨 WARNING: Reset all winners AND prizes back to 'Eligible/Unclaimed'?")) return;
@@ -208,65 +153,42 @@ export default function EmceePage() {
     await supabase.from("guests").update({ status: "eligible", prize_won: null, proof_url: null }).eq("event_id", eventId).eq("status", "won");
     await supabase.from("prizes").update({ status: "unclaimed" }).eq("event_id", eventId).eq("status", "claimed");
     await supabase.from("games").update({ status: "pending", proof_url: null }).eq("event_id", eventId).neq("id", 0);
-
-    setPrizeDisplayed(false);
-    setTimerStatus("idle");
-    fetchData();
+    setPrizeDisplayed(false); setTimerStatus("idle"); fetchData();
   };
 
   const currentPrize = unclaimedPrizes.length > 0 ? unclaimedPrizes[0] : null;
 
   const handleShowPrize = async () => {
     if (!currentPrize) return alert("⚠️ No prizes available in the queue!");
-    playSound("dj-2.mp3"); 
-    setActiveScreen("raffle");
-    setPrizeDisplayed(true);
+    playSound("dj-2.mp3"); setActiveScreen("raffle"); setPrizeDisplayed(true);
     if (channel) await channel.send({ type: "broadcast", event: "show_prize", payload: { prize: currentPrize.name } });
   };
 
   const handleSpin = async () => {
-    if (!prizeDisplayed && activeScreen !== "roulette") return alert("⚠️ You must Display the Prize on the TV first!");
+    if (!prizeDisplayed) return alert("⚠️ You must Display the Prize on the TV first!");
     if (!currentPrize) return alert("⚠️ The prize queue is empty!");
     
     const prizeCat = currentPrize.category || "All";
-
     const eligiblePool = guests.filter((g) => {
         const isEligible = g.status === "eligible";
         const isNotHost = g.referral?.toLowerCase() !== "host";
-        
-        let matchesTarget = false;
-        if (prizeCat === "All") {
-            matchesTarget = true;
-        } else if (prizeCat.includes(" - ")) {
-            const [targetRef, targetCat] = prizeCat.split(" - ");
-            matchesTarget = (g.referral === targetRef) && (g.category === targetCat);
-        } else {
-            matchesTarget = (g.category === prizeCat) || (g.referral === prizeCat);
-        }
-
+        let matchesTarget = prizeCat === "All" || (prizeCat.includes(" - ") ? g.referral === prizeCat.split(" - ")[0] && g.category === prizeCat.split(" - ")[1] : g.category === prizeCat || g.referral === prizeCat);
         return isEligible && isNotHost && matchesTarget;
     });
 
     if (eligiblePool.length === 0) return alert(`⚠️ No eligible guests found for target pool: ${prizeCat}!`);
-
     const winner = eligiblePool[Math.floor(Math.random() * eligiblePool.length)];
 
-    const { error: guestError } = await supabase.from("guests").update({ status: "won", prize_won: currentPrize.name }).eq("id", winner.id);
-    if (guestError) return alert("❌ Error updating winner.");
+    await supabase.from("guests").update({ status: "won", prize_won: currentPrize.name }).eq("id", winner.id);
     await supabase.from("prizes").update({ status: "claimed" }).eq("id", currentPrize.id);
 
     playSound("dj-4.mp3"); 
-    
     setTimeout(() => { 
-        playSound("dj-1.mp3"); 
-        setTimer(60);
-        setTimerStatus("running");
+        playSound("dj-1.mp3"); setTimer(60); setTimerStatus("running");
         if (channel) channel.send({ type: "broadcast", event: "timer_sync", payload: { time: 60, status: "running" } });
     }, 5500); 
 
-    setActiveScreen("raffle");
-    setPrizeDisplayed(false);
-    
+    setActiveScreen("raffle"); setPrizeDisplayed(false);
     if (channel) await channel.send({ type: "broadcast", event: "spin", payload: { winner, prize: currentPrize.name, prizeCategory: prizeCat } });
     fetchData(); 
   };
@@ -276,20 +198,11 @@ export default function EmceePage() {
       setLoading(true);
       const fileExt = file.name.split(".").pop();
       const filePath = `proofs/proof-${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from("guest-photos").upload(filePath, file);
-      if (uploadError) throw uploadError;
-      
+      await supabase.storage.from("guest-photos").upload(filePath, file);
       const { data: urlData } = supabase.storage.from("guest-photos").getPublicUrl(filePath);
-      const { error: updateError } = await supabase.from("guests").update({ proof_url: urlData.publicUrl }).eq("id", guestId);
-      if (updateError) throw updateError;
-      
-      alert("✅ Proof saved successfully!");
-      setTimerStatus("idle");
-      fetchData(); 
-    } catch (error: any) { 
-      alert("❌ Error: " + error.message); 
-      setLoading(false);
-    }
+      await supabase.from("guests").update({ proof_url: urlData.publicUrl }).eq("id", guestId);
+      alert("✅ Proof saved successfully!"); setTimerStatus("idle"); fetchData(); 
+    } catch (error: any) { alert("❌ Error: " + error.message); setLoading(false); }
   };
 
   const handleUploadGameProof = async (gameId: number, file: File) => {
@@ -297,31 +210,19 @@ export default function EmceePage() {
       setLoading(true);
       const fileExt = file.name.split(".").pop();
       const filePath = `game-proofs/proof-${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from("guest-photos").upload(filePath, file);
-      if (uploadError) throw uploadError;
-      
+      await supabase.storage.from("guest-photos").upload(filePath, file);
       const { data: urlData } = supabase.storage.from("guest-photos").getPublicUrl(filePath);
-
       setGames(prev => prev.map(g => g.id === gameId ? { ...g, proof_url: urlData.publicUrl, status: "done" } : g));
-
-      const { error: updateError } = await supabase.from("games").update({ proof_url: urlData.publicUrl, status: "done" }).eq("id", gameId);
-      if (updateError) throw updateError;
-      
-      alert("✅ Game Winner Photo saved & Game Locked!");
-      fetchData(); 
-    } catch (error: any) { 
-      alert("❌ Error: " + error.message); 
-      setLoading(false);
-    }
+      await supabase.from("games").update({ proof_url: urlData.publicUrl, status: "done" }).eq("id", gameId);
+      alert("✅ Game Winner Photo saved & Game Locked!"); fetchData(); 
+    } catch (error: any) { alert("❌ Error: " + error.message); setLoading(false); }
   };
 
   const handleForfeit = async () => {
-      if (!pendingProofGuest || !window.confirm(`Are you sure you want to FORFEIT the prize for ${pendingProofGuest.nickname}? This will return the prize to the pool.`)) return;
-      
+      if (!pendingProofGuest || !window.confirm(`Are you sure you want to FORFEIT the prize for ${pendingProofGuest.nickname}?`)) return;
       setLoading(true);
       await supabase.from("guests").update({ status: "eligible", prize_won: null }).eq("id", pendingProofGuest.id);
       await supabase.from("prizes").update({ status: "unclaimed" }).eq("name", pendingProofGuest.prize_won).eq("event_id", eventId);
-      
       setTimerStatus("idle");
       if (channel) await channel.send({ type: "broadcast", event: "reset" });
       fetchData();
@@ -348,70 +249,27 @@ export default function EmceePage() {
     <div className="flex w-full min-h-screen bg-gray-100 font-sans">
       <div className="w-[85%] p-4 md:p-8 overflow-y-auto pb-20 flex flex-col items-center">
         <div className="w-full max-w-5xl space-y-6">
-          
           <div className="bg-white rounded-3xl shadow-xl p-6 border-2 border-gray-200">
             <h1 className="text-3xl font-black text-blue-600 uppercase text-center tracking-widest">🎤 Emcee Director</h1>
           </div>
 
-          <ProjectorControl 
-            activeScreen={activeScreen} 
-            changeScreen={changeScreen} 
-            channel={channel} 
-            setPrizeDisplayed={setPrizeDisplayed} 
-            setTimerStatus={setTimerStatus} 
-          />
+          <ProjectorControl activeScreen={activeScreen} changeScreen={changeScreen} channel={channel} setPrizeDisplayed={setPrizeDisplayed} setTimerStatus={setTimerStatus} />
 
-          {/* NEW SAAS FEATURE: Roulette Wheel Trigger */}
-          <div className="bg-white rounded-3xl shadow-xl p-6 border-2 border-gray-200 text-center">
-             <button 
-                onClick={() => changeScreen(activeScreen === "roulette" ? "raffle" : "roulette")} 
-                className={`px-8 py-4 rounded-xl font-black text-xl shadow-xl transition-all ${activeScreen === "roulette" ? "bg-red-600 text-white hover:bg-red-700" : "bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600"}`}
-             >
-                {activeScreen === "roulette" ? "🛑 Close Roulette Wheel" : "🎡 Send Roulette to Projector"}
-             </button>
-          </div>
-
-          {activeScreen === "games" && (
-            <GamesControl 
-              games={games} 
-              playSound={playSound} 
-              channel={channel} 
-              handleUploadGameProof={handleUploadGameProof} 
-            />
-          )}
+          {activeScreen === "games" && <GamesControl games={games} playSound={playSound} channel={channel} handleUploadGameProof={handleUploadGameProof} />}
 
           {activeScreen === "raffle" && (
             <>
               <RaffleControl 
-                totalEntries={totalEntries} 
-                eligibleCount={eligibleCount} 
-                winnersCount={winnersCount} 
-                pendingProofGuest={pendingProofGuest} 
-                timerStatus={timerStatus} 
-                timer={timer} 
-                currentPrize={currentPrize} 
-                prizeDisplayed={prizeDisplayed} 
-                handleShowPrize={handleShowPrize} 
-                handleSpin={handleSpin} 
-                pauseTimer={pauseTimer} 
-                resumeTimer={resumeTimer} 
-                handleForfeit={handleForfeit} 
-                setTimerStatus={setTimerStatus} 
-                handleDemoReset={handleDemoReset} 
+                totalEntries={totalEntries} eligibleCount={eligibleCount} winnersCount={winnersCount} pendingProofGuest={pendingProofGuest} 
+                timerStatus={timerStatus} timer={timer} currentPrize={currentPrize} prizeDisplayed={prizeDisplayed} 
+                handleShowPrize={handleShowPrize} handleSpin={handleSpin} pauseTimer={pauseTimer} resumeTimer={resumeTimer} 
+                handleForfeit={handleForfeit} setTimerStatus={setTimerStatus} handleDemoReset={handleDemoReset} 
               />
-
-              <GuestRoster 
-                loading={loading} 
-                guests={guests} 
-                pendingProofGuest={pendingProofGuest} 
-                handleUploadProof={handleUploadProof} 
-                fetchData={fetchData} 
-              />
+              <GuestRoster loading={loading} guests={guests} pendingProofGuest={pendingProofGuest} handleUploadProof={handleUploadProof} fetchData={fetchData} />
             </>
           )}
         </div>
       </div>
-
       <DjBoard playSound={playSound} />
     </div>
   );
