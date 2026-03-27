@@ -21,16 +21,18 @@ export async function POST(request: Request) {
             <p style="color: #6b7280; font-size: 14px; font-weight: bold; margin-top: 0;">Welcome to your digital platform for <strong>${eventName}</strong></p>
           </div>
 
-          <!-- THE HOW-TO GUIDE -->
+          <!-- THE NEW SaaS HOW-TO GUIDE (#5 & #9 Fixes) -->
           <div style="background-color: #f8fafc; padding: 20px; border-radius: 12px; margin: 25px 0; border: 1px solid #e2e8f0;">
-            <h2 style="color: #3b82f6; margin-top: 0; font-size: 18px; text-transform: uppercase; letter-spacing: 1px;">📖 Host Quick-Start Guide</h2>
-            <ol style="padding-left: 20px; color: #475569; font-size: 14px; margin-bottom: 0;">
-              <li style="margin-bottom: 10px;"><strong>Set Up (Pre-Event):</strong> Open your <strong>Admin Dashboard</strong> using your Secure Passcode. Customize your backgrounds, add your prize lists, and enter your Cloud Folder link.</li>
-              <li style="margin-bottom: 10px;"><strong>Invite Guests:</strong> Share the <strong>RSVP Link</strong> via email or text so attendees can register ahead of time.</li>
-              <li style="margin-bottom: 10px;"><strong>At the Door:</strong> Give your reception team the <strong>Door Check-in</strong> link on a tablet or phone to seamlessly check guests in.</li>
-              <li style="margin-bottom: 10px;"><strong>Show Time:</strong> Connect a laptop to the main venue TV and open the <strong>Live Projector</strong> link. Give your DJ or host the <strong>Emcee Remote</strong> on their phone to spin the wheel!</li>
-              <li><strong>After Party:</strong> Guests can use the <strong>Upload/Download</strong> portal to share their photos, and view the <strong>Memory Gallery</strong> to see the night's winners.</li>
-            </ol>
+            <h2 style="color: #3b82f6; margin-top: 0; font-size: 18px; text-transform: uppercase; letter-spacing: 1px;">🎯 Target Your Raffles</h2>
+            <p style="font-size: 14px; color: #475569; margin-top: 5px;">You can now run perfectly targeted prize draws! When guests RSVP or check in at the door, assign them a <strong>Category</strong> (e.g., Adults, Teens) and a <strong>Group</strong> (e.g., Family, VIP, Co-workers).</p>
+            <p style="font-size: 14px; color: #475569; margin-bottom: 20px;">On your Emcee Dashboard, simply select your target audience (like "Teens - VIP") to ensure the digital projector wheel <em>only</em> spins through that specific list of people!</p>
+            
+            <h2 style="color: #3b82f6; margin-top: 0; font-size: 18px; text-transform: uppercase; letter-spacing: 1px;">🎲 Fun Game Ideas to Try</h2>
+            <ul style="padding-left: 20px; color: #475569; font-size: 14px; margin-bottom: 0;">
+              <li style="margin-bottom: 10px;"><strong>Bring Me:</strong> The Emcee names an obscure object (e.g., "A blue sock!"). The first guest to run to the stage with the item wins.</li>
+              <li style="margin-bottom: 10px;"><strong>Dance Battle Cam:</strong> Turn on the Live Projector, play a song from your Emcee DJ Board, and whoever is dancing the craziest when the music stops takes the prize.</li>
+              <li style="margin-bottom: 10px;"><strong>Trivia Roulette:</strong> Spin the wheel for a random guest. If they correctly answer a trivia question about the guest of honor, they win!</li>
+            </ul>
           </div>
 
           <p style="font-size: 15px; font-weight: bold; color: #111827;">Here are your official access keys and QR codes. Distribute these to your team:</p>
@@ -80,7 +82,7 @@ export async function POST(request: Request) {
                 <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${baseUrl}/${eventSlug}" alt="Projector QR" style="border-radius: 8px; border: 1px solid #e5e7eb;" />
               </td>
               <td width="50%" valign="top">
-                <h3 style="color: #4b5563; font-size: 14px; text-transform: uppercase;">📸 Photo Upload/Download</h3>
+                <h3 style="color: #4b5563; font-size: 14px; text-transform: uppercase;">📸 Photo Upload</h3>
                 <p style="font-size: 13px; word-break: break-all;"><a href="${baseUrl}/${eventSlug}/upload" style="color: #3b82f6;">${baseUrl}/${eventSlug}/upload</a></p>
                 <img src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${baseUrl}/${eventSlug}/upload" alt="Upload QR" style="border-radius: 8px; border: 1px solid #e5e7eb;" />
               </td>
