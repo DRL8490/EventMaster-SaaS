@@ -2,10 +2,13 @@
 import React, { useState } from "react";
 import { supabase } from "../../lib/supabaseClient";
 
-// FIXED: Removed eventId from props
 export default function RsvpsTab({ rsvps, fetchData, executeDbAction, uniqueReferrals }: any) {
   const [rsvpFilter, setRsvpFilter] = useState("All");
   const [rsvpReferralFilter, setRsvpReferralFilter] = useState("All");
+  
+  // NEW SAAS FEATURE: Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  
   const [editingRsvpId, setEditingRsvpId] = useState<number | null>(null);
   const [editRsvpData, setEditRsvpData] = useState({ full_name: "", nickname: "", category: "Adults", referral: "" });
   
@@ -17,7 +20,6 @@ export default function RsvpsTab({ rsvps, fetchData, executeDbAction, uniqueRefe
   };
 
   const handleSaveRsvp = async (id: number) => {
-      // FIXED: Target uniquely by id only
       await executeDbAction(supabase.from("rsvps").update(editRsvpData).eq("id", id));
       setEditingRsvpId(null);
   };
@@ -25,7 +27,11 @@ export default function RsvpsTab({ rsvps, fetchData, executeDbAction, uniqueRefe
   const filteredRsvps = rsvps.filter((r: any) => {
       const matchCat = rsvpFilter === "All" || r.category === rsvpFilter;
       const matchRef = rsvpReferralFilter === "All" || r.referral === rsvpReferralFilter;
-      return matchCat && matchRef;
+      // NEW SAAS FEATURE: Search Logic
+      const searchLower = searchQuery.toLowerCase();
+      const matchSearch = (r.full_name?.toLowerCase().includes(searchLower) || r.nickname?.toLowerCase().includes(searchLower));
+      
+      return matchCat && matchRef && matchSearch;
   });
 
   return (
@@ -42,8 +48,31 @@ export default function RsvpsTab({ rsvps, fetchData, executeDbAction, uniqueRefe
             <button onClick={fetchData} className="text-sm font-bold text-blue-600 hover:text-blue-700 bg-blue-50 px-4 py-2 rounded-lg">🔄 Refresh RSVPs</button>
         </div>
 
-        <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 mb-6 flex flex-col md:flex-row gap-6">
+        {/* UPDATED UI: Added the Search Bar to the filter section */}
+        <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200 mb-6 flex flex-col lg:flex-row gap-6">
             <div className="flex-1">
+                <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Search RSVPs</p>
+                <div className="relative">
+                    <input 
+                        type="text" 
+                        value={searchQuery} 
+                        onChange={(e) => setSearchQuery(e.target.value)} 
+                        placeholder="Search by name..." 
+                        className="w-full p-3 rounded-xl border-2 border-gray-200 font-bold outline-none focus:border-blue-500 bg-white pr-10" 
+                    />
+                    {searchQuery && (
+                        <button 
+                            onClick={() => setSearchQuery("")} 
+                            className="absolute right-3 top-1/2 -translate-y-1/2 bg-gray-200 hover:bg-red-500 hover:text-white text-gray-600 rounded-full w-6 h-6 flex items-center justify-center font-black text-sm transition-all shadow-sm"
+                            title="Clear search"
+                        >
+                            ✕
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            <div className="flex-[1.5]">
                 <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Filter by Category</p>
                 <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
                     {filterCategories.map(cat => {
@@ -59,6 +88,7 @@ export default function RsvpsTab({ rsvps, fetchData, executeDbAction, uniqueRefe
                     })}
                 </div>
             </div>
+
             <div className="flex-1">
                 <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Filter by Group</p>
                 <select value={rsvpReferralFilter} onChange={(e) => setRsvpReferralFilter(e.target.value)} className="w-full p-3 rounded-xl border-2 border-gray-200 font-bold outline-none focus:border-blue-500 bg-white cursor-pointer">
@@ -106,8 +136,6 @@ export default function RsvpsTab({ rsvps, fetchData, executeDbAction, uniqueRefe
                                     <td className="p-4"><span className="font-bold text-gray-600 bg-purple-50 px-3 py-1 rounded-lg border border-purple-100">{r.referral || "None"}</span></td>
                                     <td className="p-4 text-center space-x-2">
                                         <button onClick={() => handleEditRsvpClick(r)} className="text-blue-600 font-bold text-sm bg-blue-50 hover:bg-blue-500 hover:text-white px-4 py-2 rounded-lg transition-all">✏️ Edit</button>
-                                        
-                                        {/* FIXED: Target uniquely by id only */}
                                         <button onClick={() => window.confirm(`Delete RSVP?`) && executeDbAction(supabase.from("rsvps").delete().eq("id", r.id))} className="text-red-600 font-bold text-sm bg-red-50 hover:bg-red-500 hover:text-white px-4 py-2 rounded-lg transition-all">🗑️</button>
                                     </td>
                                 </>
