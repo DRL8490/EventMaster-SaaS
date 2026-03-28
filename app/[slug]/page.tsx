@@ -194,7 +194,21 @@ export default function ProjectorPage() {
       
       {/* Safe injection of global CSS */}
       <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
-
+{/* 🔍 TEMPORARY DIAGNOSTIC OVERLAY 🔍 */}
+      <div className="absolute top-4 left-4 z-[9999] bg-black/90 text-lime-400 p-6 rounded-xl font-mono text-sm border-2 border-lime-500 shadow-2xl text-left pointer-events-none">
+          <h3 className="text-white font-bold mb-2 border-b border-lime-500 pb-1 uppercase tracking-widest">Projector X-Ray</h3>
+          <p>1. Event ID: <span className="text-white">{eventId || "NULL"}</span></p>
+          <p>2. App Mode: <span className="text-white">{displayMode}</span></p>
+          <p>3. Gallery View: <span className="text-white">{viewMode}</span></p>
+          <p>4. Current Shape: <span className="text-white">{currentDisplayShape}</span></p>
+          <p className="mt-2 text-yellow-300 font-bold">5. Eligible Guests Downloaded: {allGuests.length}</p>
+          
+          {allGuests.length === 0 && (
+              <p className="text-red-400 mt-2 max-w-[250px] whitespace-normal leading-tight">
+                ⚠️ ERROR: Database returned 0 guests. Check Supabase Row Level Security (RLS) policies!
+              </p>
+          )}
+      </div>
       {displayMode === "pregame" && eventId && (
          <PregameBubbles eventId={eventId} shape={currentDisplayShape} themeStyles={themeStyles} viewMode={viewMode} allGuests={allGuests} />
       )}
