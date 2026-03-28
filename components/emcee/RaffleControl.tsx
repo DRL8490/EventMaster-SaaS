@@ -5,7 +5,9 @@ export default function RaffleControl({
   totalEntries, eligibleCount, winnersCount, pendingProofGuest,
   timerStatus, timer, currentPrize, prizeDisplayed, handleShowPrize,
   handleSpin, pauseTimer, resumeTimer, handleForfeit, setTimerStatus,
-  handleDemoReset
+  handleDemoReset,
+  // NEW: Catching the boolean we passed from the parent page
+  isEvaluatingWinner 
 }: any) {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -45,9 +47,15 @@ export default function RaffleControl({
           
           <h2 className="text-sm font-black text-yellow-900 uppercase tracking-widest mb-4">📺 2. Display & Spin</h2>
           <div className="grid grid-cols-3 gap-3 mb-4">
-              <button onClick={handleShowPrize} disabled={!currentPrize} className="col-span-1 py-4 bg-yellow-100 text-yellow-800 border-2 border-yellow-300 hover:bg-yellow-200 disabled:opacity-50 rounded-2xl text-xs font-black uppercase shadow-md transition-all active:scale-95">
+              {/* FIXED: Added isEvaluatingWinner to the disabled condition */}
+              <button 
+                onClick={handleShowPrize} 
+                disabled={!currentPrize || isEvaluatingWinner} 
+                className="col-span-1 py-4 bg-yellow-100 text-yellow-800 border-2 border-yellow-300 hover:bg-yellow-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-2xl text-xs font-black uppercase shadow-md transition-all active:scale-95"
+              >
                   📺 Display Prize
               </button>
+              
               <button onClick={handleSpin} disabled={!currentPrize || !prizeDisplayed || timerStatus !== "idle"} className={`col-span-2 py-4 rounded-2xl text-2xl font-black uppercase shadow-xl transition-all ${prizeDisplayed && timerStatus === "idle" ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white active:scale-95' : 'bg-gray-300 text-gray-500 cursor-not-allowed border-4 border-gray-200 grayscale'}`}>
                   🎰 {prizeDisplayed ? "SPIN WHEEL" : "LOCKED"}
               </button>

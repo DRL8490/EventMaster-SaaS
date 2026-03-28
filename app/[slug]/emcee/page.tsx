@@ -264,6 +264,7 @@ export default function EmceePage() {
                 timerStatus={timerStatus} timer={timer} currentPrize={currentPrize} prizeDisplayed={prizeDisplayed} 
                 handleShowPrize={handleShowPrize} handleSpin={handleSpin} pauseTimer={pauseTimer} resumeTimer={resumeTimer} 
                 handleForfeit={handleForfeit} setTimerStatus={setTimerStatus} handleDemoReset={handleDemoReset} 
+                isEvaluatingWinner={pendingProofGuest !== null}
               />
               <GuestRoster loading={loading} guests={guests} pendingProofGuest={pendingProofGuest} handleUploadProof={handleUploadProof} fetchData={fetchData} />
             </>
