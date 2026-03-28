@@ -33,10 +33,9 @@ export default function ProjectorPage() {
   const baseUrl = "https://event-master-saas.vercel.app";
   const [allGuests, setAllGuests] = useState<any[]>([]);
 
-  // NEW SAAS FEATURE: Dynamic Shape State for Cycling
+  // SAAS FEATURE: Dynamic Shape State for Cycling
   const [currentDisplayShape, setCurrentDisplayShape] = useState("bubble");
 
-  // 1. Theme Helper
   const getThemeColors = () => {
     switch (theme) {
       case "blue": return { border: "border-blue-400", text: "text-blue-600", bg: "bg-blue-600", glow: "drop-shadow-[0_0_20px_rgba(59,130,246,0.8)]" };
@@ -47,18 +46,15 @@ export default function ProjectorPage() {
   };
   const themeStyles = getThemeColors();
 
-  // 2. Shape Cycling Logic
   useEffect(() => {
     if (shape === "cycle") {
       const shapesList = ["bubble", "rounded", "square", "star", "heart", "cloud"];
       let idx = 0;
       setCurrentDisplayShape(shapesList[idx]);
-
       const interval = setInterval(() => {
         idx = (idx + 1) % shapesList.length;
         setCurrentDisplayShape(shapesList[idx]);
-      }, 180000); // 3 minutes in milliseconds
-
+      }, 180000); 
       return () => clearInterval(interval);
     } else {
       setCurrentDisplayShape(shape);
@@ -136,16 +132,23 @@ export default function ProjectorPage() {
         if (payload.new.landscape_url !== undefined) setBgImage(payload.new.landscape_url && payload.new.landscape_url.trim() !== "" ? payload.new.landscape_url : null);
     }).subscribe();
 
-    // RESTORED: WebSocket listener to instantly add new guests to the big screen!
-    const guestSub = supabase.channel(`guest_updates_${eventId}`).on(
-      "postgres_changes",
-      { event: "INSERT", schema: "public", table: "guests", filter: `event_id=eq.${eventId}` },
-      (payload: any) => {
-        if (payload.new.status === "eligible") {
-          setAllGuests(prev => [...prev, payload.new]);
-        }
-      }
-    ).subscribe();
+    // FIXED: The Projector now listens for INSERT, UPDATE, and DELETE so it perfectly syncs with Admin panel edits
+    const guestSub = supabase.channel(`guest_updates_${eventId}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "guests", filter: `event_id=eq.${eventId}` }, (payload: any) => {
+        if (payload.new.status === "eligible") setAllGuests(prev => [...prev, payload.new]);
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "guests", filter: `event_id=eq.${eventId}` }, (payload: any) => {
+        setAllGuests(prev => {
+           const exists = prev.find(g => g.id === payload.new.id);
+           if (payload.new.status === "eligible" && !exists) return [...prev, payload.new];
+           if (payload.new.status !== "eligible" && exists) return prev.filter(g => g.id !== payload.new.id);
+           return prev.map(g => g.id === payload.new.id ? payload.new : g);
+        });
+      })
+      .on("postgres_changes", { event: "DELETE", schema: "public", table: "guests", filter: `event_id=eq.${eventId}` }, (payload: any) => {
+        setAllGuests(prev => prev.filter(g => g.id !== payload.old.id));
+      })
+      .subscribe();
 
     return () => { supabase.removeChannel(channel); supabase.removeChannel(configSub); supabase.removeChannel(guestSub); };
   }, [eventId]); 
@@ -169,7 +172,7 @@ export default function ProjectorPage() {
   return (
     <div className={`fixed inset-0 w-screen h-screen flex flex-col items-center justify-center p-4 md:p-8 overflow-hidden ${!bgImage ? themeStyles.bg : "bg-gray-900"}`} style={computedMainStyle}>
       
-      {/* GLOBAL CSS WITH STICKER-TRIM ILLUSION */}
+      {/* FIXED: Moved global animations here so they never unmount */}
       <style dangerouslySetInnerHTML={{ __html: `
         .shape-star { clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
         .shape-heart { mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>'); mask-size: cover; mask-position: center; }
@@ -181,13 +184,22 @@ export default function ProjectorPage() {
                     drop-shadow(0px 6px 0px white) 
                     drop-shadow(0px -6px 0px white);
         }
+
+        @keyframes floatContinuous { 
+            0% { top: 120vh; opacity: 0; transform: scale(0.8); } 
+            5% { opacity: 1; transform: scale(1); } 
+            95% { opacity: 1; } 
+            100% { top: -40vh; opacity: 0; } 
+        }
+        @keyframes slotDrop { 0% { transform: translateY(-100%); opacity: 0; } 40% { opacity: 1; } 100% { transform: translateY(0); opacity: 1; } } 
+        .animate-slot { animation: slotDrop 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
       `}} />
 
       {displayMode === "pregame" && eventId && (
          <PregameBubbles eventId={eventId} shape={currentDisplayShape} themeStyles={themeStyles} viewMode={viewMode} allGuests={allGuests} />
       )}
 
-      {/* RESTORED: Full QR DISPLAY with QR Codes and Flexbox Layout */}
+      {/* QR DISPLAY */}
       {displayMode === "qr" && (
          <div className={`bg-white/95 backdrop-blur-xl p-8 lg:p-12 rounded-[3rem] shadow-2xl text-center border-8 ${themeStyles.border} animate-in zoom-in duration-700 w-full max-w-7xl mx-auto flex flex-col items-center z-10 max-h-[90vh]`}>
             <h1 className={`text-3xl lg:text-5xl xl:text-6xl font-black ${themeStyles.text} uppercase mb-8 lg:mb-10 drop-shadow-sm tracking-widest shrink-0`}>
@@ -210,7 +222,7 @@ export default function ProjectorPage() {
          </div>
       )}
 
-      {/* RESTORED: Full GAMES DISPLAY with Winner Counts */}
+      {/* GAMES DISPLAY */}
       {displayMode === "games" && activeGame && (
           <div className="bg-green-400 text-green-900 py-8 px-8 lg:py-16 lg:px-12 rounded-[4rem] shadow-2xl text-center border-8 border-green-200 animate-in zoom-in duration-700 w-full max-w-6xl mx-auto flex flex-col items-center justify-center relative z-10 max-h-[90vh]">
               <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white to-transparent pointer-events-none"></div>
@@ -227,7 +239,6 @@ export default function ProjectorPage() {
       {displayMode === "raffle" && (
         <>
           {winner && !isSpinning && !shuffleData && <div className="absolute inset-0 z-50 pointer-events-none transform scale-150 origin-center overflow-hidden"><Confetti width={windowSize.width} height={windowSize.height} recycle={false} numberOfPieces={800} gravity={0.15} /></div>}
-          <style dangerouslySetInnerHTML={{ __html: `@keyframes slotDrop { 0% { transform: translateY(-100%); opacity: 0; } 40% { opacity: 1; } 100% { transform: translateY(0); opacity: 1; } } .animate-slot { animation: slotDrop 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }` }} />
 
           {!isSpinning && !shuffleData && !winner && !prizeName && (
             <div className="bg-black/60 backdrop-blur-md border border-white/20 p-8 lg:p-12 rounded-[3rem] shadow-2xl text-center w-full max-w-5xl mx-auto z-10">
@@ -252,15 +263,12 @@ export default function ProjectorPage() {
           {shuffleData && (
             <div className={`bg-white/95 backdrop-blur-xl rounded-[3rem] shadow-2xl border-8 ${themeStyles.border} w-full max-w-5xl transform scale-105 h-64 lg:h-80 flex items-center justify-center p-6 mx-auto z-10`}>
               <div key={shuffleData.key} className="flex items-center justify-center gap-6 lg:gap-10 w-full animate-slot">
-                
                 <GuestAvatar src={shuffleData.guest.photo_url} className="w-40 h-40 lg:w-64 lg:h-64 shrink-0" shape={currentDisplayShape} glow={themeStyles.glow} />
                 <h1 className={`text-6xl lg:text-8xl xl:text-9xl font-black ${themeStyles.text} uppercase truncate pb-2`}>{shuffleData.guest.nickname}</h1>
-              
               </div>
             </div>
           )}
 
-          {/* RESTORED: Full Winner Display with Countdown Timer */}
           {winner && !isSpinning && !shuffleData && (
             <div className={`bg-white/95 backdrop-blur-xl p-8 lg:p-10 rounded-[3rem] shadow-2xl text-center border-8 border-green-400 animate-in zoom-in duration-700 w-full max-w-5xl flex flex-col items-center justify-center gap-2 lg:gap-4 mx-auto z-10 flex-1 min-h-0 max-h-[85vh]`}>
               <div className="text-4xl lg:text-6xl animate-bounce shrink-0">🎉🏆🎉</div>
@@ -320,20 +328,19 @@ function PregameBubbles({ eventId, shape, themeStyles, viewMode, allGuests }: { 
       }));
   };
 
-  // NEW SAAS FIX: Shared Header that always renders, preventing "blank" screens
-  const WelcomeHeader = () => (
-      <div className="absolute top-[10vh] w-full text-center z-50 pointer-events-none">
-          <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] uppercase tracking-widest px-4">Welcome to the Party!</h1>
-          {allGuests.length === 0 && (
-             <p className="text-2xl md:text-4xl text-blue-300 font-bold drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] mt-2 lg:mt-4 animate-pulse">Waiting for guests to join...</p>
-          )}
-      </div>
+  const welcomeText = (
+    <div className="absolute top-[10vh] w-full text-center z-50 pointer-events-none">
+        <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] uppercase tracking-widest px-4">Welcome to the Party!</h1>
+        {allGuests.length === 0 && (
+           <p className="text-2xl md:text-4xl text-blue-300 font-bold drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] mt-2 lg:mt-4 animate-pulse">Waiting for guests to join...</p>
+        )}
+    </div>
   );
 
   if (viewMode === "carousel") {
     return (
       <div className="absolute inset-0 z-30">
-         <WelcomeHeader />
+         {welcomeText}
          <div className="absolute inset-x-0 bottom-20 z-40 px-10">
             <div className="flex overflow-x-auto snap-x snap-mandatory gap-8 pb-8 pt-4 scrollbar-hide items-end h-80">
                {allGuests.map(g => (
@@ -351,7 +358,7 @@ function PregameBubbles({ eventId, shape, themeStyles, viewMode, allGuests }: { 
   if (viewMode === "masonry") {
     return (
       <div className="absolute inset-0 z-30 p-12 overflow-hidden bg-black/40 backdrop-blur-sm">
-         <WelcomeHeader />
+         {welcomeText}
          <div className="columns-3 md:columns-5 lg:columns-7 gap-6 space-y-6 mt-32">
             {allGuests.map(g => (
                <div key={g.id} className="relative group animate-in fade-in duration-1000">
@@ -371,7 +378,7 @@ function PregameBubbles({ eventId, shape, themeStyles, viewMode, allGuests }: { 
     const olderGuests = allGuests.slice(0, -1);
     return (
       <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/70 backdrop-blur-md">
-         <WelcomeHeader />
+         {welcomeText}
          <div className="absolute inset-0 flex flex-wrap justify-center items-center gap-4 opacity-30 blur-[2px] p-8 mt-32">
             {olderGuests.map(g => (
                <GuestAvatar key={g.id} src={g.photo_url} className="w-32 h-32" shape={shape} />
@@ -393,8 +400,7 @@ function PregameBubbles({ eventId, shape, themeStyles, viewMode, allGuests }: { 
 
   return (
     <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-      <style dangerouslySetInnerHTML={{ __html: `@keyframes floatContinuous { 0% { top: 120vh; opacity: 0; transform: scale(0.8); } 5% { opacity: 1; transform: scale(1); } 95% { opacity: 1; } 100% { top: -40vh; opacity: 0; } }` }} />
-      <WelcomeHeader />
+      {welcomeText}
       {bubbles.map((b) => {
         if (!b.guest) return null;
         return (
@@ -425,7 +431,6 @@ function GuestAvatar({ src, className, shape, glow = "" }: { src: string, classN
     }
   };
 
-  // If it's a custom mask (Star, Heart, Cloud), wrap it in our 4-sided drop-shadow trick
   if (isCustom) {
     return (
       <div className={`custom-shape-wrapper inline-flex ${glow}`}>
@@ -434,7 +439,6 @@ function GuestAvatar({ src, className, shape, glow = "" }: { src: string, classN
     );
   }
 
-  // If it's a standard shape (Bubble, Rounded, Square), just use a standard 6px CSS border
   return (
     <img src={src} className={`${className} object-cover border-[6px] border-white bg-white ${glow} ${getShapeClass()}`} alt="Guest" />
   );
