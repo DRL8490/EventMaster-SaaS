@@ -320,16 +320,29 @@ function PregameBubbles({ eventId, shape, themeStyles, viewMode, allGuests }: { 
       }));
   };
 
+  // NEW SAAS FIX: Shared Header that always renders, preventing "blank" screens
+  const WelcomeHeader = () => (
+      <div className="absolute top-[10vh] w-full text-center z-50 pointer-events-none">
+          <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] uppercase tracking-widest px-4">Welcome to the Party!</h1>
+          {allGuests.length === 0 && (
+             <p className="text-2xl md:text-4xl text-blue-300 font-bold drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)] mt-2 lg:mt-4 animate-pulse">Waiting for guests to join...</p>
+          )}
+      </div>
+  );
+
   if (viewMode === "carousel") {
     return (
-      <div className="absolute inset-x-0 bottom-20 z-40 px-10">
-         <div className="flex overflow-x-auto snap-x snap-mandatory gap-8 pb-8 pt-4 scrollbar-hide items-end h-80">
-            {allGuests.map(g => (
-               <div key={g.id} className="snap-center shrink-0 animate-in slide-in-from-bottom duration-500">
-                  <GuestAvatar src={g.photo_url} className="w-56 h-56" shape={shape} glow="drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]" />
-                  <p className="text-center text-white font-black uppercase mt-4 text-2xl drop-shadow-md">{g.nickname}</p>
-               </div>
-            ))}
+      <div className="absolute inset-0 z-30">
+         <WelcomeHeader />
+         <div className="absolute inset-x-0 bottom-20 z-40 px-10">
+            <div className="flex overflow-x-auto snap-x snap-mandatory gap-8 pb-8 pt-4 scrollbar-hide items-end h-80">
+               {allGuests.map(g => (
+                  <div key={g.id} className="snap-center shrink-0 animate-in slide-in-from-bottom duration-500">
+                     <GuestAvatar src={g.photo_url} className="w-56 h-56" shape={shape} glow="drop-shadow-[0_0_15px_rgba(255,255,255,0.8)]" />
+                     <p className="text-center text-white font-black uppercase mt-4 text-2xl drop-shadow-md">{g.nickname}</p>
+                  </div>
+               ))}
+            </div>
          </div>
       </div>
     );
@@ -338,7 +351,8 @@ function PregameBubbles({ eventId, shape, themeStyles, viewMode, allGuests }: { 
   if (viewMode === "masonry") {
     return (
       <div className="absolute inset-0 z-30 p-12 overflow-hidden bg-black/40 backdrop-blur-sm">
-         <div className="columns-3 md:columns-5 lg:columns-7 gap-6 space-y-6">
+         <WelcomeHeader />
+         <div className="columns-3 md:columns-5 lg:columns-7 gap-6 space-y-6 mt-32">
             {allGuests.map(g => (
                <div key={g.id} className="relative group animate-in fade-in duration-1000">
                   <GuestAvatar src={g.photo_url} className="w-full aspect-square" shape={shape} glow="drop-shadow-xl" />
@@ -357,13 +371,14 @@ function PregameBubbles({ eventId, shape, themeStyles, viewMode, allGuests }: { 
     const olderGuests = allGuests.slice(0, -1);
     return (
       <div className="absolute inset-0 z-30 flex items-center justify-center bg-black/70 backdrop-blur-md">
-         <div className="absolute inset-0 flex flex-wrap justify-center items-center gap-4 opacity-30 blur-[2px] p-8">
+         <WelcomeHeader />
+         <div className="absolute inset-0 flex flex-wrap justify-center items-center gap-4 opacity-30 blur-[2px] p-8 mt-32">
             {olderGuests.map(g => (
                <GuestAvatar key={g.id} src={g.photo_url} className="w-32 h-32" shape={shape} />
             ))}
          </div>
          {latestGuest && (
-           <div className="relative z-50 animate-in zoom-in duration-500 flex flex-col items-center">
+           <div className="relative z-50 animate-in zoom-in duration-500 flex flex-col items-center mt-20">
               <div className="absolute -inset-20 bg-white/20 blur-3xl rounded-full" />
               <GuestAvatar src={latestGuest.photo_url} className="w-96 h-96" shape={shape} glow="drop-shadow-[0_0_60px_rgba(255,255,255,0.8)]" />
               <div className="mt-8 bg-white text-black px-12 py-4 rounded-full shadow-2xl">
@@ -379,9 +394,7 @@ function PregameBubbles({ eventId, shape, themeStyles, viewMode, allGuests }: { 
   return (
     <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
       <style dangerouslySetInnerHTML={{ __html: `@keyframes floatContinuous { 0% { top: 120vh; opacity: 0; transform: scale(0.8); } 5% { opacity: 1; transform: scale(1); } 95% { opacity: 1; } 100% { top: -40vh; opacity: 0; } }` }} />
-      <div className="absolute top-[10vh] w-full text-center z-50">
-          <h1 className="text-5xl md:text-7xl lg:text-8xl font-black text-white drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] uppercase tracking-widest px-4">Welcome to the Party!</h1>
-      </div>
+      <WelcomeHeader />
       {bubbles.map((b) => {
         if (!b.guest) return null;
         return (
