@@ -60,7 +60,6 @@ export default function RsvpPage() {
     };
     fetchConfig();
 
-    // SAAS WEBSOCKET: Listen only for this specific event's config changes
     const subscription = supabase.channel(`config_${eventId}`).on("postgres_changes", { 
         event: "UPDATE", 
         schema: "public", 
@@ -83,7 +82,26 @@ export default function RsvpPage() {
     if (!eventId) return;
 
     try {
-      // SAAS INSERT: Tag the RSVP with the correct eventId!
+      // NEW SAAS FEATURE: The Duplicate Bouncer
+      // We check if this EXACT full name already exists for THIS specific event.
+      // We use .ilike() to make the search case-insensitive (e.g., "noel brita" == "Noel Brita")
+      const { data: existingGuest, error: searchError } = await supabase
+        .from("rsvps")
+        .select("id")
+        .eq("event_id", eventId)
+        .ilike("full_name", fullName)
+        .maybeSingle();
+
+      if (searchError) throw searchError;
+
+      // If a match is found, stop the submission and alert the user
+      if (existingGuest) {
+        setErrorMessage(`Looks like ${fullName} has already RSVP'd!`);
+        setIsSubmitting(false);
+        return; 
+      }
+
+      // If no duplicate is found, proceed with inserting the new RSVP
       const { error } = await supabase.from("rsvps").insert([
         { event_id: eventId, full_name: fullName, nickname: nickname, category: category },
       ]);
@@ -109,7 +127,6 @@ export default function RsvpPage() {
     </div>
   );
 
-  // The Bouncer: Block access if RSVPs are closed
   if (!isSuccess && !isRsvpOpen) {
     return (
       <div className="fixed inset-0 w-full flex flex-col items-center justify-center p-6 bg-gray-900 text-center">
@@ -130,7 +147,6 @@ export default function RsvpPage() {
             <h2 className="text-2xl font-black text-green-600 uppercase leading-none mb-4">RSVP Confirmed!</h2>
             <div className="text-6xl mb-4 animate-bounce">💌</div>
             
-            {/* DYNAMIC EVENT NAME IN SUCCESS MESSAGE */}
             <p className="text-gray-600 font-bold mb-6 text-sm">Your name is on the VIP list. We can't wait to celebrate {eventName} with you!</p>
             
             <button onClick={() => { setIsSuccess(false); setFullName(""); setNickname(""); setCategory("Adults"); }} className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-black text-sm uppercase shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
@@ -142,13 +158,13 @@ export default function RsvpPage() {
         <form onSubmit={handleSubmit} className="flex-1 min-h-0 w-full flex flex-col justify-between px-4 py-6" style={{ backgroundImage: bgImageUrl ? `url(${bgImageUrl})` : 'none', backgroundSize: "cover", backgroundPosition: "center" }}>
           <div className="text-center shrink-0 mb-4 pt-4">
             
-            {/* DYNAMIC EVENT NAME ON FORM */}
             <h1 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter leading-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">{eventName}</h1>
             
             <p className="text-yellow-300 font-black mt-2 uppercase tracking-widest text-xs drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">Pre-Event RSVP Form</p>
           </div>
           
-          {errorMessage && <div className="bg-red-50 border-2 border-red-300 text-red-600 p-3 rounded-xl font-black text-center animate-bounce shadow-lg text-xs shrink-0 mb-2">{errorMessage}</div>}
+          {/* This is where the Duplicate Error Message will appear! */}
+          {errorMessage && <div className="bg-red-50 border-2 border-red-300 text-red-600 p-3 rounded-xl font-black text-center shadow-lg text-sm shrink-0 mb-2">{errorMessage}</div>}
 
           <div className="flex-1 min-h-0 flex flex-col justify-center space-y-4 max-w-sm mx-auto w-full pb-4">
             <div>
