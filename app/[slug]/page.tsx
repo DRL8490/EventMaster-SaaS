@@ -5,13 +5,35 @@ import { useParams } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import Confetti from "react-confetti";
 
+// FIXED: Defining the CSS outside the component prevents React from resetting the animations on re-renders!
+const GLOBAL_CSS = `
+  .shape-star { clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
+  .shape-heart { mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>'); mask-size: cover; mask-position: center; }
+  .shape-cloud { mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.36 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>'); mask-size: cover; mask-position: center; transform: scale(1.1); }
+  
+  .custom-shape-wrapper {
+      filter: drop-shadow(6px 0px 0px white) 
+              drop-shadow(-6px 0px 0px white) 
+              drop-shadow(0px 6px 0px white) 
+              drop-shadow(0px -6px 0px white);
+  }
+
+  @keyframes floatContinuous { 
+      0% { top: 120vh; opacity: 0; transform: scale(0.8); } 
+      5% { opacity: 1; transform: scale(1); } 
+      95% { opacity: 1; } 
+      100% { top: -40vh; opacity: 0; } 
+  }
+  @keyframes slotDrop { 0% { transform: translateY(-100%); opacity: 0; } 40% { opacity: 1; } 100% { transform: translateY(0); opacity: 1; } } 
+  .animate-slot { animation: slotDrop 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+`;
+
 export default function ProjectorPage() {
   const params = useParams();
   const eventSlug = params?.slug || "";
   const [eventId, setEventId] = useState<number | null>(null);
   const [invalidEvent, setInvalidEvent] = useState(false);
 
-  // SAAS CONFIG STATE
   const [theme, setTheme] = useState("purple");
   const [shape, setShape] = useState("bubble");
   const [viewMode, setViewMode] = useState("grid");
@@ -33,7 +55,6 @@ export default function ProjectorPage() {
   const baseUrl = "https://event-master-saas.vercel.app";
   const [allGuests, setAllGuests] = useState<any[]>([]);
 
-  // SAAS FEATURE: Dynamic Shape State for Cycling
   const [currentDisplayShape, setCurrentDisplayShape] = useState("bubble");
 
   const getThemeColors = () => {
@@ -132,7 +153,6 @@ export default function ProjectorPage() {
         if (payload.new.landscape_url !== undefined) setBgImage(payload.new.landscape_url && payload.new.landscape_url.trim() !== "" ? payload.new.landscape_url : null);
     }).subscribe();
 
-    // FIXED: The Projector now listens for INSERT, UPDATE, and DELETE so it perfectly syncs with Admin panel edits
     const guestSub = supabase.channel(`guest_updates_${eventId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "guests", filter: `event_id=eq.${eventId}` }, (payload: any) => {
         if (payload.new.status === "eligible") setAllGuests(prev => [...prev, payload.new]);
@@ -172,28 +192,8 @@ export default function ProjectorPage() {
   return (
     <div className={`fixed inset-0 w-screen h-screen flex flex-col items-center justify-center p-4 md:p-8 overflow-hidden ${!bgImage ? themeStyles.bg : "bg-gray-900"}`} style={computedMainStyle}>
       
-      {/* FIXED: Moved global animations here so they never unmount */}
-      <style dangerouslySetInnerHTML={{ __html: `
-        .shape-star { clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
-        .shape-heart { mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>'); mask-size: cover; mask-position: center; }
-        .shape-cloud { mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.36 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>'); mask-size: cover; mask-position: center; transform: scale(1.1); }
-        
-        .custom-shape-wrapper {
-            filter: drop-shadow(6px 0px 0px white) 
-                    drop-shadow(-6px 0px 0px white) 
-                    drop-shadow(0px 6px 0px white) 
-                    drop-shadow(0px -6px 0px white);
-        }
-
-        @keyframes floatContinuous { 
-            0% { top: 120vh; opacity: 0; transform: scale(0.8); } 
-            5% { opacity: 1; transform: scale(1); } 
-            95% { opacity: 1; } 
-            100% { top: -40vh; opacity: 0; } 
-        }
-        @keyframes slotDrop { 0% { transform: translateY(-100%); opacity: 0; } 40% { opacity: 1; } 100% { transform: translateY(0); opacity: 1; } } 
-        .animate-slot { animation: slotDrop 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
-      `}} />
+      {/* Safe injection of global CSS */}
+      <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
 
       {displayMode === "pregame" && eventId && (
          <PregameBubbles eventId={eventId} shape={currentDisplayShape} themeStyles={themeStyles} viewMode={viewMode} allGuests={allGuests} />
@@ -302,9 +302,12 @@ function PregameBubbles({ eventId, shape, themeStyles, viewMode, allGuests }: { 
   const priorityQueueRef = useRef<any[]>([]);
   const MAX_BUBBLES = 5; 
 
+  // FIXED: A fuzzy fallback so it safely generates bubbles even if the DB value isn't perfectly lowercase "grid"
+  const isGrid = !viewMode || !["carousel", "masonry", "spotlight"].includes(viewMode.toLowerCase());
+
   useEffect(() => {
     guestsRef.current = allGuests;
-    if (allGuests.length > 0 && bubbles.length === 0 && viewMode === "grid") {
+    if (allGuests.length > 0 && bubbles.length === 0 && isGrid) {
         const slotsToCreate = Math.min(MAX_BUBBLES, allGuests.length || MAX_BUBBLES);
         const initialBubbles = Array.from({ length: slotsToCreate }).map((_, i) => {
             const g = allGuests[nextGuestIndex.current % allGuests.length];
@@ -313,10 +316,10 @@ function PregameBubbles({ eventId, shape, themeStyles, viewMode, allGuests }: { 
         });
         setBubbles(initialBubbles);
     }
-  }, [allGuests, bubbles.length, viewMode]);
+  }, [allGuests, bubbles.length, isGrid]);
 
   const handleIteration = (slotId: number) => {
-      if (guestsRef.current.length === 0 || viewMode !== "grid") return;
+      if (guestsRef.current.length === 0 || !isGrid) return;
       setBubbles(prev => prev.map(b => {
           if (b.slotId === slotId) {
               let nextG;
@@ -337,7 +340,7 @@ function PregameBubbles({ eventId, shape, themeStyles, viewMode, allGuests }: { 
     </div>
   );
 
-  if (viewMode === "carousel") {
+  if (viewMode?.toLowerCase() === "carousel") {
     return (
       <div className="absolute inset-0 z-30">
          {welcomeText}
@@ -355,7 +358,7 @@ function PregameBubbles({ eventId, shape, themeStyles, viewMode, allGuests }: { 
     );
   }
 
-  if (viewMode === "masonry") {
+  if (viewMode?.toLowerCase() === "masonry") {
     return (
       <div className="absolute inset-0 z-30 p-12 overflow-hidden bg-black/40 backdrop-blur-sm">
          {welcomeText}
@@ -373,7 +376,7 @@ function PregameBubbles({ eventId, shape, themeStyles, viewMode, allGuests }: { 
     );
   }
 
-  if (viewMode === "spotlight") {
+  if (viewMode?.toLowerCase() === "spotlight") {
     const latestGuest = allGuests[allGuests.length - 1];
     const olderGuests = allGuests.slice(0, -1);
     return (
