@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import Confetti from "react-confetti";
 
+// Fixed global CSS to prevent resetting on shape-change timer
 const GLOBAL_CSS = `
   .shape-star { clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
   .shape-heart { mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>'); mask-size: cover; mask-position: center; }
@@ -33,6 +34,7 @@ export default function ProjectorPage() {
   const [eventId, setEventId] = useState<number | null>(null);
   const [invalidEvent, setInvalidEvent] = useState(false);
 
+  // SAAS CONFIG STATE
   const [theme, setTheme] = useState("purple");
   const [shape, setShape] = useState("bubble");
   const [viewMode, setViewMode] = useState("grid");
@@ -54,6 +56,7 @@ export default function ProjectorPage() {
   const baseUrl = "https://event-master-saas.vercel.app";
   const [allGuests, setAllGuests] = useState<any[]>([]);
 
+  // SAAS FEATURE: Dynamic Shape State for Cycling
   const [currentDisplayShape, setCurrentDisplayShape] = useState("bubble");
 
   const getThemeColors = () => {
@@ -99,7 +102,7 @@ export default function ProjectorPage() {
           if (configData.landscape_url && configData.landscape_url.trim() !== "") setBgImage(configData.landscape_url);
       }
 
-      // FIXED: Now we fetch ALL guests for the gallery, regardless of eligible/ineligible status!
+      // Fetch ALL guests, eligible or not. Eligibility is handled in the raffle query.
       const { data: guestsData } = await supabase.from("guests").select("*").eq("event_id", eventData.id);
       if (guestsData) setAllGuests(guestsData);
     };
@@ -122,7 +125,6 @@ export default function ProjectorPage() {
         try { new Audio("/spin.mp3").play().catch(() => {}); } catch(e) {}
 
         const prizeCat = payload.payload.prizeCategory || "All";
-        // NOTICE: The spin query still strictly filters by "eligible", so your hosts won't be drawn!
         let query = supabase.from("guests").select("*").eq("event_id", eventId).eq("status", "eligible");
         if (prizeCat !== "All") query = query.eq("category", prizeCat);
         const { data } = await query;
@@ -154,7 +156,6 @@ export default function ProjectorPage() {
         if (payload.new.landscape_url !== undefined) setBgImage(payload.new.landscape_url && payload.new.landscape_url.trim() !== "" ? payload.new.landscape_url : null);
     }).subscribe();
 
-    // FIXED: Realtime listener now accepts ALL guests regardless of their status
     const guestSub = supabase.channel(`guest_updates_${eventId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "guests", filter: `event_id=eq.${eventId}` }, (payload: any) => {
         setAllGuests(prev => [...prev, payload.new]);
@@ -193,6 +194,7 @@ export default function ProjectorPage() {
   return (
     <div className={`fixed inset-0 w-screen h-screen flex flex-col items-center justify-center p-4 md:p-8 overflow-hidden ${!bgImage ? themeStyles.bg : "bg-gray-900"}`} style={computedMainStyle}>
       
+      {/* Safe injection of global CSS */}
       <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
 
       {displayMode === "pregame" && eventId && (
@@ -269,20 +271,29 @@ export default function ProjectorPage() {
             </div>
           )}
 
+          {/* FIXED: Re-engineered Winner Card with Horizontal Layout & Larger Avatar */}
           {winner && !isSpinning && !shuffleData && (
-            <div className={`bg-white/95 backdrop-blur-xl p-8 lg:p-10 rounded-[3rem] shadow-2xl text-center border-8 border-green-400 animate-in zoom-in duration-700 w-full max-w-5xl flex flex-col items-center justify-center gap-2 lg:gap-4 mx-auto z-10 flex-1 min-h-0 max-h-[85vh]`}>
-              <div className="text-4xl lg:text-6xl animate-bounce shrink-0">🎉🏆🎉</div>
-              <h2 className="text-xl lg:text-3xl font-bold text-gray-500 uppercase tracking-widest shrink-0">Congratulations</h2>
-              <h1 className={`text-5xl md:text-7xl lg:text-8xl xl:text-9xl font-black ${themeStyles.text} uppercase py-1 truncate max-w-full shrink`}>{winner.nickname}!</h1>
+            <div className={`bg-white/95 backdrop-blur-xl p-8 rounded-[3rem] shadow-2xl border-8 border-green-400 animate-in zoom-in duration-700 w-full max-w-7xl mx-auto z-10 flex flex-col md:flex-row items-center justify-center gap-8 lg:gap-12 min-h-0 max-h-[85vh]`}>
               
-              <div className="flex justify-center py-2 min-h-0 flex-1 overflow-hidden">
-                <GuestAvatar src={winner.photo_url} className="h-full aspect-square max-h-[30vh] lg:max-h-[35vh]" shape={currentDisplayShape} glow="drop-shadow-[0_0_40px_rgba(74,222,128,1)]" />
+              {/* Left Column: Trophy, Congratulations, and LARGE Avatar */}
+              <div className="flex flex-col items-center justify-center gap-2 flex-1 w-full md:w-auto">
+                  <div className="text-4xl lg:text-6xl animate-bounce shrink-0">🎉🏆🎉</div>
+                  <h2 className="text-xl lg:text-3xl font-bold text-gray-500 uppercase tracking-widest shrink-0">Congratulations</h2>
+                  <h1 className={`text-5xl md:text-7xl lg:text-8xl xl:text-9xl font-black ${themeStyles.text} uppercase py-1 truncate max-w-full shrink leading-tight`}>{winner.nickname}!</h1>
+                  
+                  {/* Avatar is now LARGE and placed on the left side */}
+                  <div className="w-full flex justify-center py-2 max-w-sm lg:max-w-md xl:max-w-lg">
+                    <GuestAvatar src={winner.photo_url} className="w-full h-full aspect-square object-cover" shape={currentDisplayShape} glow="drop-shadow-[0_0_40px_rgba(74,222,128,1)]" />
+                  </div>
               </div>
               
+              {/* Right Column: Timer Block */}
               {timerStatus !== "idle" && (
-                <div className={`mt-2 lg:mt-4 px-10 py-3 lg:py-4 rounded-full border-4 shrink-0 ${timerStatus === "paused" ? "bg-gray-200 border-gray-400 text-gray-600" : "bg-red-100 border-red-500 text-red-600 animate-pulse"}`}>
-                    <p className="text-xs lg:text-sm font-black uppercase tracking-widest leading-none mb-1 text-center">Time to Claim</p>
-                    <p className="text-4xl lg:text-5xl font-black tracking-widest text-center">⏱️ {timer}s</p>
+                <div className="flex flex-col items-center justify-center flex-none w-full md:w-auto">
+                    <div className={`p-8 rounded-full border-4 shrink-0 ${timerStatus === "paused" ? "bg-gray-200 border-gray-400 text-gray-600" : "bg-red-100 border-red-500 text-red-600 animate-pulse"}`}>
+                        <p className="text-xs lg:text-sm font-black uppercase tracking-widest leading-none mb-1 text-center">Time to Claim</p>
+                        <p className="text-4xl lg:text-5xl font-black tracking-widest text-center">⏱️ {timer}s</p>
+                    </div>
                 </div>
               )}
             </div>
