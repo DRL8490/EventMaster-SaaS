@@ -136,7 +136,18 @@ export default function ProjectorPage() {
         if (payload.new.landscape_url !== undefined) setBgImage(payload.new.landscape_url && payload.new.landscape_url.trim() !== "" ? payload.new.landscape_url : null);
     }).subscribe();
 
-    return () => { supabase.removeChannel(channel); supabase.removeChannel(configSub); };
+    // RESTORED: WebSocket listener to instantly add new guests to the big screen!
+    const guestSub = supabase.channel(`guest_updates_${eventId}`).on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "guests", filter: `event_id=eq.${eventId}` },
+      (payload: any) => {
+        if (payload.new.status === "eligible") {
+          setAllGuests(prev => [...prev, payload.new]);
+        }
+      }
+    ).subscribe();
+
+    return () => { supabase.removeChannel(channel); supabase.removeChannel(configSub); supabase.removeChannel(guestSub); };
   }, [eventId]); 
 
   if (invalidEvent) return <div className="fixed inset-0 bg-black flex items-center justify-center text-red-500 text-4xl font-black uppercase">Event Not Found</div>;
@@ -164,7 +175,6 @@ export default function ProjectorPage() {
         .shape-heart { mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>'); mask-size: cover; mask-position: center; }
         .shape-cloud { mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.36 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96z"/></svg>'); mask-size: cover; mask-position: center; transform: scale(1.1); }
         
-        /* THE STICKER TRIM HACK: 4 dense shadows simulate a 6px white border on masked shapes */
         .custom-shape-wrapper {
             filter: drop-shadow(6px 0px 0px white) 
                     drop-shadow(-6px 0px 0px white) 
@@ -177,18 +187,40 @@ export default function ProjectorPage() {
          <PregameBubbles eventId={eventId} shape={currentDisplayShape} themeStyles={themeStyles} viewMode={viewMode} allGuests={allGuests} />
       )}
 
-      {/* QR DISPLAY */}
+      {/* RESTORED: Full QR DISPLAY with QR Codes and Flexbox Layout */}
       {displayMode === "qr" && (
          <div className={`bg-white/95 backdrop-blur-xl p-8 lg:p-12 rounded-[3rem] shadow-2xl text-center border-8 ${themeStyles.border} animate-in zoom-in duration-700 w-full max-w-7xl mx-auto flex flex-col items-center z-10 max-h-[90vh]`}>
-           <h1 className={`text-3xl lg:text-5xl xl:text-6xl font-black ${themeStyles.text} uppercase mb-8 lg:mb-10 drop-shadow-sm tracking-widest shrink-0`}>Scan to Relive the Magic!</h1>
+            <h1 className={`text-3xl lg:text-5xl xl:text-6xl font-black ${themeStyles.text} uppercase mb-8 lg:mb-10 drop-shadow-sm tracking-widest shrink-0`}>
+              Scan to Relive the Magic!
+            </h1>
+            
+            <div className="flex flex-col md:flex-row items-stretch justify-center gap-8 lg:gap-16 w-full flex-1 min-h-0 overflow-hidden">
+                <div className="flex flex-col items-center justify-center bg-gray-50 p-6 lg:p-8 rounded-3xl border-4 border-gray-200 shadow-inner flex-1 max-h-full">
+                    <h2 className="text-2xl lg:text-4xl font-black text-gray-800 uppercase tracking-widest mb-2 shrink-0">Memory Gallery</h2>
+                    <p className="text-sm lg:text-base font-bold text-gray-500 uppercase tracking-widest mb-4 lg:mb-6 shrink-0">See all winners & guests!</p>
+                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(`${baseUrl}/${eventSlug}/memory`)}`} alt="Memory QR" className="w-48 h-48 lg:w-72 lg:h-72 object-contain rounded-2xl shadow-xl border-8 border-white transition-transform hover:scale-105 shrink min-h-0" />
+                </div>
+
+                <div className="flex flex-col items-center justify-center bg-blue-50 p-6 lg:p-8 rounded-3xl border-4 border-blue-200 shadow-inner flex-1 max-h-full">
+                    <h2 className="text-2xl lg:text-4xl font-black text-blue-700 uppercase tracking-widest mb-2 whitespace-nowrap shrink-0">Photo Drop</h2>
+                    <p className="text-sm lg:text-base font-bold text-blue-500 uppercase tracking-widest mb-4 lg:mb-6 shrink-0">Share your favorite moments!</p>
+                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(`${baseUrl}/${eventSlug}/upload`)}`} alt="Upload QR" className="w-48 h-48 lg:w-72 lg:h-72 object-contain rounded-2xl shadow-xl border-8 border-white transition-transform hover:scale-105 shrink min-h-0" />
+                </div>
+            </div>
          </div>
       )}
 
-      {/* GAMES DISPLAY */}
+      {/* RESTORED: Full GAMES DISPLAY with Winner Counts */}
       {displayMode === "games" && activeGame && (
-         <div className="bg-green-400 text-green-900 py-8 px-8 lg:py-16 lg:px-12 rounded-[4rem] shadow-2xl text-center border-8 border-green-200 animate-in zoom-in w-full max-w-6xl mx-auto flex flex-col items-center justify-center relative z-10">
-            <h1 className="text-4xl md:text-5xl lg:text-7xl xl:text-8xl font-black uppercase tracking-tighter drop-shadow-lg mb-8 relative z-10">{activeGame.name}</h1>
-         </div>
+          <div className="bg-green-400 text-green-900 py-8 px-8 lg:py-16 lg:px-12 rounded-[4rem] shadow-2xl text-center border-8 border-green-200 animate-in zoom-in duration-700 w-full max-w-6xl mx-auto flex flex-col items-center justify-center relative z-10 max-h-[90vh]">
+              <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white to-transparent pointer-events-none"></div>
+              <span className="text-6xl lg:text-8xl mb-4 animate-bounce relative z-10 shrink-0">🎲</span>
+              <p className="text-xl lg:text-3xl font-bold uppercase tracking-widest text-green-800 mb-4 relative z-10 shrink-0">Get Ready to Play:</p>
+              <h1 className="text-4xl md:text-5xl lg:text-7xl xl:text-8xl font-black uppercase tracking-tighter drop-shadow-lg mb-8 relative z-10 leading-tight break-words max-w-full px-4 shrink">{activeGame.name}</h1>
+              <div className="bg-white/95 px-8 py-4 lg:px-12 lg:py-5 rounded-full border-4 border-green-500 shadow-xl relative z-10 animate-pulse mt-auto shrink-0">
+                  <p className="text-xl lg:text-3xl font-black text-green-700 uppercase tracking-widest">Looking for {activeGame.winners} {activeGame.winners === 1 ? 'Winner' : 'Winners'}!</p>
+              </div>
+          </div>
       )}
 
       {/* RAFFLE DISPLAY */}
@@ -221,7 +253,6 @@ export default function ProjectorPage() {
             <div className={`bg-white/95 backdrop-blur-xl rounded-[3rem] shadow-2xl border-8 ${themeStyles.border} w-full max-w-5xl transform scale-105 h-64 lg:h-80 flex items-center justify-center p-6 mx-auto z-10`}>
               <div key={shuffleData.key} className="flex items-center justify-center gap-6 lg:gap-10 w-full animate-slot">
                 
-                {/* REFACTORED: Using currentDisplayShape */}
                 <GuestAvatar src={shuffleData.guest.photo_url} className="w-40 h-40 lg:w-64 lg:h-64 shrink-0" shape={currentDisplayShape} glow={themeStyles.glow} />
                 <h1 className={`text-6xl lg:text-8xl xl:text-9xl font-black ${themeStyles.text} uppercase truncate pb-2`}>{shuffleData.guest.nickname}</h1>
               
@@ -229,17 +260,23 @@ export default function ProjectorPage() {
             </div>
           )}
 
+          {/* RESTORED: Full Winner Display with Countdown Timer */}
           {winner && !isSpinning && !shuffleData && (
             <div className={`bg-white/95 backdrop-blur-xl p-8 lg:p-10 rounded-[3rem] shadow-2xl text-center border-8 border-green-400 animate-in zoom-in duration-700 w-full max-w-5xl flex flex-col items-center justify-center gap-2 lg:gap-4 mx-auto z-10 flex-1 min-h-0 max-h-[85vh]`}>
               <div className="text-4xl lg:text-6xl animate-bounce shrink-0">🎉🏆🎉</div>
+              <h2 className="text-xl lg:text-3xl font-bold text-gray-500 uppercase tracking-widest shrink-0">Congratulations</h2>
               <h1 className={`text-5xl md:text-7xl lg:text-8xl xl:text-9xl font-black ${themeStyles.text} uppercase py-1 truncate max-w-full shrink`}>{winner.nickname}!</h1>
               
               <div className="flex justify-center py-2 min-h-0 flex-1 overflow-hidden">
-                
-                {/* REFACTORED: Using currentDisplayShape */}
                 <GuestAvatar src={winner.photo_url} className="h-full aspect-square max-h-[30vh] lg:max-h-[35vh]" shape={currentDisplayShape} glow="drop-shadow-[0_0_40px_rgba(74,222,128,1)]" />
-              
               </div>
+              
+              {timerStatus !== "idle" && (
+                <div className={`mt-2 lg:mt-4 px-10 py-3 lg:py-4 rounded-full border-4 shrink-0 ${timerStatus === "paused" ? "bg-gray-200 border-gray-400 text-gray-600" : "bg-red-100 border-red-500 text-red-600 animate-pulse"}`}>
+                    <p className="text-xs lg:text-sm font-black uppercase tracking-widest leading-none mb-1 text-center">Time to Claim</p>
+                    <p className="text-4xl lg:text-5xl font-black tracking-widest text-center">⏱️ {timer}s</p>
+                </div>
+              )}
             </div>
           )}
         </>
