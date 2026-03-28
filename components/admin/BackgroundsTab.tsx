@@ -92,6 +92,7 @@ export default function BackgroundsTab({ eventId, bgUrls, files, setFiles, handl
                         <option value="star">⭐ Star</option>
                         <option value="heart">❤️ Heart</option>
                         <option value="cloud">☁️ Cloud</option>
+                        <option value="cycle">🔄 Cycle All Shapes (3 mins)</option>
                     </select>
                 </div>
 
