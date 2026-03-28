@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import { supabase } from "../../lib/supabaseClient";
 import Confetti from "react-confetti";
 
-// FIXED: Defining the CSS outside the component prevents React from resetting the animations on re-renders!
 const GLOBAL_CSS = `
   .shape-star { clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
   .shape-heart { mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>'); mask-size: cover; mask-position: center; }
@@ -100,7 +99,8 @@ export default function ProjectorPage() {
           if (configData.landscape_url && configData.landscape_url.trim() !== "") setBgImage(configData.landscape_url);
       }
 
-      const { data: guestsData } = await supabase.from("guests").select("*").eq("event_id", eventData.id).eq("status", "eligible");
+      // FIXED: Now we fetch ALL guests for the gallery, regardless of eligible/ineligible status!
+      const { data: guestsData } = await supabase.from("guests").select("*").eq("event_id", eventData.id);
       if (guestsData) setAllGuests(guestsData);
     };
 
@@ -122,6 +122,7 @@ export default function ProjectorPage() {
         try { new Audio("/spin.mp3").play().catch(() => {}); } catch(e) {}
 
         const prizeCat = payload.payload.prizeCategory || "All";
+        // NOTICE: The spin query still strictly filters by "eligible", so your hosts won't be drawn!
         let query = supabase.from("guests").select("*").eq("event_id", eventId).eq("status", "eligible");
         if (prizeCat !== "All") query = query.eq("category", prizeCat);
         const { data } = await query;
@@ -153,15 +154,15 @@ export default function ProjectorPage() {
         if (payload.new.landscape_url !== undefined) setBgImage(payload.new.landscape_url && payload.new.landscape_url.trim() !== "" ? payload.new.landscape_url : null);
     }).subscribe();
 
+    // FIXED: Realtime listener now accepts ALL guests regardless of their status
     const guestSub = supabase.channel(`guest_updates_${eventId}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "guests", filter: `event_id=eq.${eventId}` }, (payload: any) => {
-        if (payload.new.status === "eligible") setAllGuests(prev => [...prev, payload.new]);
+        setAllGuests(prev => [...prev, payload.new]);
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "guests", filter: `event_id=eq.${eventId}` }, (payload: any) => {
         setAllGuests(prev => {
            const exists = prev.find(g => g.id === payload.new.id);
-           if (payload.new.status === "eligible" && !exists) return [...prev, payload.new];
-           if (payload.new.status !== "eligible" && exists) return prev.filter(g => g.id !== payload.new.id);
+           if (!exists) return [...prev, payload.new];
            return prev.map(g => g.id === payload.new.id ? payload.new : g);
         });
       })
@@ -192,23 +193,8 @@ export default function ProjectorPage() {
   return (
     <div className={`fixed inset-0 w-screen h-screen flex flex-col items-center justify-center p-4 md:p-8 overflow-hidden ${!bgImage ? themeStyles.bg : "bg-gray-900"}`} style={computedMainStyle}>
       
-      {/* Safe injection of global CSS */}
       <style dangerouslySetInnerHTML={{ __html: GLOBAL_CSS }} />
-{/* 🔍 TEMPORARY DIAGNOSTIC OVERLAY 🔍 */}
-      <div className="absolute top-4 left-4 z-[9999] bg-black/90 text-lime-400 p-6 rounded-xl font-mono text-sm border-2 border-lime-500 shadow-2xl text-left pointer-events-none">
-          <h3 className="text-white font-bold mb-2 border-b border-lime-500 pb-1 uppercase tracking-widest">Projector X-Ray</h3>
-          <p>1. Event ID: <span className="text-white">{eventId || "NULL"}</span></p>
-          <p>2. App Mode: <span className="text-white">{displayMode}</span></p>
-          <p>3. Gallery View: <span className="text-white">{viewMode}</span></p>
-          <p>4. Current Shape: <span className="text-white">{currentDisplayShape}</span></p>
-          <p className="mt-2 text-yellow-300 font-bold">5. Eligible Guests Downloaded: {allGuests.length}</p>
-          
-          {allGuests.length === 0 && (
-              <p className="text-red-400 mt-2 max-w-[250px] whitespace-normal leading-tight">
-                ⚠️ ERROR: Database returned 0 guests. Check Supabase Row Level Security (RLS) policies!
-              </p>
-          )}
-      </div>
+
       {displayMode === "pregame" && eventId && (
          <PregameBubbles eventId={eventId} shape={currentDisplayShape} themeStyles={themeStyles} viewMode={viewMode} allGuests={allGuests} />
       )}
@@ -316,7 +302,6 @@ function PregameBubbles({ eventId, shape, themeStyles, viewMode, allGuests }: { 
   const priorityQueueRef = useRef<any[]>([]);
   const MAX_BUBBLES = 5; 
 
-  // FIXED: A fuzzy fallback so it safely generates bubbles even if the DB value isn't perfectly lowercase "grid"
   const isGrid = !viewMode || !["carousel", "masonry", "spotlight"].includes(viewMode.toLowerCase());
 
   useEffect(() => {
