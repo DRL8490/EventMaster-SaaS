@@ -114,7 +114,21 @@ export default function GuestsTab({ guests, fetchData, executeDbAction, stats, u
                                     <option value="Kids">Kids</option>
                                 </select>
                             </td>
-                            <td className="p-4 text-center"><span className="font-bold text-gray-600 bg-purple-50 px-3 py-1 rounded-lg border border-purple-100">{g.referral || "None"}</span></td>
+                            
+                            {/* NEW SAAS FEATURE: Inline Group/Referral Editing */}
+                            <td className="p-4 text-center">
+                                <select 
+                                    value={g.referral || "None"} 
+                                    onChange={(e) => executeDbAction(supabase.from("guests").update({ referral: e.target.value === "None" ? null : e.target.value }).eq("id", g.id))} 
+                                    className="bg-purple-50 border-2 border-purple-100 hover:border-purple-400 rounded-lg p-2 text-xs font-black uppercase text-gray-700 outline-none cursor-pointer transition-all"
+                                >
+                                    <option value="None">None</option>
+                                    {uniqueReferrals?.filter((ref: string) => ref !== "All" && ref !== "None").map((ref: string) => (
+                                        <option key={ref} value={ref}>{ref}</option>
+                                    ))}
+                                </select>
+                            </td>
+
                             <td className="p-4 text-center">
                                 <select 
                                     value={g.status || "eligible"} 
