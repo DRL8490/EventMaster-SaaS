@@ -7,9 +7,15 @@ export default function GuestsTab({ guests, fetchData, executeDbAction, stats, u
   const [guestReferralFilter, setGuestReferralFilter] = useState("All"); 
   const [searchQuery, setSearchQuery] = useState("");
   
-  // NEW SAAS FEATURE: Track which guest is currently being edited
+  // UNIFIED EDIT STATE
   const [editingGuestId, setEditingGuestId] = useState<number | null>(null);
-  const [editFormData, setEditFormData] = useState({ nickname: "", full_name: "" });
+  const [editFormData, setEditFormData] = useState({ 
+      nickname: "", 
+      full_name: "",
+      category: "Adults",
+      referral: "None",
+      status: "eligible"
+  });
 
   const filterCategories = ["All", "Adults", "Teens", "Kids"];
 
@@ -22,21 +28,28 @@ export default function GuestsTab({ guests, fetchData, executeDbAction, stats, u
       return matchCat && matchRef && matchSearch;
   });
 
-  // Handle clicking the "Edit" button
+  // Load ALL current data into the form when Edit is clicked
   const handleEditClick = (guest: any) => {
       setEditingGuestId(guest.id);
-      setEditFormData({ nickname: guest.nickname, full_name: guest.full_name });
+      setEditFormData({ 
+          nickname: guest.nickname || "", 
+          full_name: guest.full_name || "",
+          category: guest.category || "Adults",
+          referral: guest.referral || "None",
+          status: guest.status || "eligible"
+      });
   };
 
-  // Handle clicking the "Save" button
+  // Save ALL fields at the exact same time
   const handleSaveClick = async (guestId: number) => {
-      // Send the updated names to the database
       await executeDbAction(supabase.from("guests").update({ 
           nickname: editFormData.nickname, 
-          full_name: editFormData.full_name 
+          full_name: editFormData.full_name,
+          category: editFormData.category,
+          referral: editFormData.referral,
+          status: editFormData.status
       }).eq("id", guestId));
       
-      // Exit edit mode
       setEditingGuestId(null);
   };
 
@@ -121,84 +134,107 @@ export default function GuestsTab({ guests, fetchData, executeDbAction, stats, u
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                    {filteredGuests.map((g: any) => (
-                        <tr key={g.id} className="hover:bg-gray-50">
-                            <td className="p-4"><img src={g.photo_url} alt="Selfie" className="w-16 h-16 rounded-xl object-cover border-2 shadow-sm" /></td>
-                            
-                            {/* UPDATED: Details Column - Switches between Text and Inputs based on Edit State */}
-                            <td className="p-4">
-                                {editingGuestId === g.id ? (
-                                    <div className="flex flex-col gap-2">
-                                        <input 
-                                            type="text" 
-                                            value={editFormData.nickname} 
-                                            onChange={(e) => setEditFormData({...editFormData, nickname: e.target.value})}
-                                            className="w-full p-2 border-2 border-blue-400 rounded-lg text-sm font-black text-blue-600 outline-none"
-                                            placeholder="Nickname"
-                                        />
-                                        <input 
-                                            type="text" 
-                                            value={editFormData.full_name} 
-                                            onChange={(e) => setEditFormData({...editFormData, full_name: e.target.value})}
-                                            className="w-full p-2 border-2 border-gray-300 rounded-lg text-xs font-medium text-gray-700 outline-none"
-                                            placeholder="Full Name"
-                                        />
-                                    </div>
-                                ) : (
-                                    <>
-                                        <p className="font-black text-blue-600 text-xl">{g.nickname}</p>
-                                        <p className="font-medium text-gray-500 text-sm">{g.full_name}</p>
-                                    </>
-                                )}
-                            </td>
-
-                            <td className="p-4 text-center">
-                                <select value={g.category || "Adults"} onChange={(e) => executeDbAction(supabase.from("guests").update({ category: e.target.value }).eq("id", g.id))} className="bg-gray-100 border-2 border-gray-200 hover:border-blue-400 rounded-lg p-2 text-xs font-black uppercase text-gray-700 outline-none cursor-pointer transition-all">
-                                    <option value="Adults">Adults</option>
-                                    <option value="Teens">Teens</option>
-                                    <option value="Kids">Kids</option>
-                                </select>
-                            </td>
-                            
-                            <td className="p-4 text-center">
-                                <select 
-                                    value={g.referral || "None"} 
-                                    onChange={(e) => executeDbAction(supabase.from("guests").update({ referral: e.target.value }).eq("id", g.id))}
-                                    className="bg-purple-50 border-2 border-purple-100 hover:border-purple-400 rounded-lg p-2 text-xs font-black uppercase text-gray-700 outline-none cursor-pointer transition-all"
-                                >
-                                    <option value="None">None</option>
-                                    {uniqueReferrals?.filter((ref: string) => ref !== "All" && ref !== "None").map((ref: string) => (
-                                        <option key={ref} value={ref}>{ref}</option>
-                                    ))}
-                                </select>
-                            </td>
-
-                            <td className="p-4 text-center">
-                                <select 
-                                    value={g.status || "eligible"} 
-                                    onChange={(e) => executeDbAction(supabase.from("guests").update({ status: e.target.value }).eq("id", g.id))} 
-                                    className={`font-black uppercase px-3 py-1 rounded-full text-xs outline-none cursor-pointer border ${g.status === "won" ? "bg-purple-100 text-purple-700 border-purple-200" : g.status === "ineligible" ? "bg-gray-200 text-gray-600 border-gray-300" : "bg-green-100 text-green-700 border-green-200"}`}
-                                >
-                                    <option value="eligible">Eligible</option>
-                                    <option value="ineligible">Ineligible</option>
-                                    <option value="won">🏆 Winner</option>
-                                </select>
-                            </td>
-
-                            {/* UPDATED: Actions Column - Added Edit/Save Buttons */}
-                            <td className="p-4 text-center">
-                                <div className="flex flex-col gap-2 items-center justify-center">
-                                    {editingGuestId === g.id ? (
-                                        <button onClick={() => handleSaveClick(g.id)} className="w-24 text-white font-bold text-xs bg-green-500 hover:bg-green-600 px-3 py-2 rounded-lg transition-all">✅ Save</button>
+                    {filteredGuests.map((g: any) => {
+                        const isEditing = editingGuestId === g.id;
+                        
+                        return (
+                            <tr key={g.id} className="hover:bg-gray-50">
+                                <td className="p-4"><img src={g.photo_url} alt="Selfie" className="w-16 h-16 rounded-xl object-cover border-2 shadow-sm" /></td>
+                                
+                                <td className="p-4">
+                                    {isEditing ? (
+                                        <div className="flex flex-col gap-2">
+                                            <input 
+                                                type="text" 
+                                                value={editFormData.nickname} 
+                                                onChange={(e) => setEditFormData({...editFormData, nickname: e.target.value})}
+                                                className="w-full p-2 border-2 border-blue-400 rounded-lg text-sm font-black text-blue-600 outline-none"
+                                                placeholder="Nickname"
+                                            />
+                                            <input 
+                                                type="text" 
+                                                value={editFormData.full_name} 
+                                                onChange={(e) => setEditFormData({...editFormData, full_name: e.target.value})}
+                                                className="w-full p-2 border-2 border-gray-300 rounded-lg text-xs font-medium text-gray-700 outline-none"
+                                                placeholder="Full Name"
+                                            />
+                                        </div>
                                     ) : (
-                                        <button onClick={() => handleEditClick(g)} className="w-24 text-blue-600 font-bold text-xs bg-blue-50 hover:bg-blue-600 hover:text-white px-3 py-2 rounded-lg transition-all">✏️ Edit</button>
+                                        <>
+                                            <p className="font-black text-blue-600 text-xl">{g.nickname}</p>
+                                            <p className="font-medium text-gray-500 text-sm">{g.full_name}</p>
+                                        </>
                                     )}
-                                    <button onClick={() => window.confirm(`Delete ${g.nickname}?`) && executeDbAction(supabase.from("guests").delete().eq("id", g.id))} className="w-24 text-red-600 font-bold text-xs bg-red-50 hover:bg-red-500 hover:text-white px-3 py-2 rounded-lg transition-all">🗑️ Delete</button>
-                                </div>
-                            </td>
+                                </td>
 
-                        </tr>
-                    ))}
+                                <td className="p-4 text-center">
+                                    {isEditing ? (
+                                        <select 
+                                            value={editFormData.category} 
+                                            onChange={(e) => setEditFormData({...editFormData, category: e.target.value})} 
+                                            className="bg-gray-50 border-2 border-blue-400 rounded-lg p-2 text-xs font-black uppercase text-gray-700 outline-none cursor-pointer w-full"
+                                        >
+                                            <option value="Adults">Adults</option>
+                                            <option value="Teens">Teens</option>
+                                            <option value="Kids">Kids</option>
+                                        </select>
+                                    ) : (
+                                        <span className="font-bold text-gray-700 bg-gray-100 px-3 py-1 rounded-lg border border-gray-200 uppercase text-xs inline-block">
+                                            {g.category || "Adults"}
+                                        </span>
+                                    )}
+                                </td>
+                                
+                                <td className="p-4 text-center">
+                                    {isEditing ? (
+                                        <select 
+                                            value={editFormData.referral} 
+                                            onChange={(e) => setEditFormData({...editFormData, referral: e.target.value})}
+                                            className="bg-purple-50 border-2 border-blue-400 rounded-lg p-2 text-xs font-black uppercase text-gray-700 outline-none cursor-pointer w-full"
+                                        >
+                                            <option value="None">None</option>
+                                            {uniqueReferrals?.filter((ref: string) => ref !== "All" && ref !== "None").map((ref: string) => (
+                                                <option key={ref} value={ref}>{ref}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <span className="font-bold text-gray-600 bg-purple-50 px-3 py-1 rounded-lg border border-purple-100 inline-block max-w-[120px] truncate" title={g.referral || "None"}>
+                                            {g.referral || "None"}
+                                        </span>
+                                    )}
+                                </td>
+
+                                <td className="p-4 text-center">
+                                    {isEditing ? (
+                                        <select 
+                                            value={editFormData.status} 
+                                            onChange={(e) => setEditFormData({...editFormData, status: e.target.value})} 
+                                            className="bg-green-50 border-2 border-blue-400 rounded-lg p-2 text-xs font-black uppercase text-gray-700 outline-none cursor-pointer w-full"
+                                        >
+                                            <option value="eligible">Eligible</option>
+                                            <option value="ineligible">Ineligible</option>
+                                            <option value="won">🏆 Winner</option>
+                                        </select>
+                                    ) : (
+                                        <span className={`font-black uppercase px-3 py-1 rounded-full text-xs inline-block border ${g.status === "won" ? "bg-purple-100 text-purple-700 border-purple-200" : g.status === "ineligible" ? "bg-gray-200 text-gray-600 border-gray-300" : "bg-green-100 text-green-700 border-green-200"}`}>
+                                            {g.status === "won" ? "🏆 Winner" : g.status || "Eligible"}
+                                        </span>
+                                    )}
+                                </td>
+
+                                <td className="p-4 text-center">
+                                    <div className="flex flex-col gap-2 items-center justify-center">
+                                        {isEditing ? (
+                                            <button onClick={() => handleSaveClick(g.id)} className="w-24 text-white font-bold text-xs bg-green-500 hover:bg-green-600 px-3 py-2 rounded-lg transition-all shadow-md">✅ Save</button>
+                                        ) : (
+                                            <button onClick={() => handleEditClick(g)} className="w-24 text-blue-600 font-bold text-xs bg-blue-50 hover:bg-blue-600 hover:text-white border border-blue-200 px-3 py-2 rounded-lg transition-all">✏️ Edit</button>
+                                        )}
+                                        <button onClick={() => window.confirm(`Delete ${g.nickname}?`) && executeDbAction(supabase.from("guests").delete().eq("id", g.id))} className="w-24 text-red-600 font-bold text-xs bg-red-50 hover:bg-red-500 hover:text-white border border-red-200 px-3 py-2 rounded-lg transition-all">🗑️ Delete</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        );
+                    })}
                 </tbody>
             </table>
             {filteredGuests.length === 0 && <p className="text-center text-gray-400 font-bold py-10">No guests match this filter.</p>}
