@@ -18,22 +18,21 @@ export default function MemoryPage() {
   const [allGuests, setAllGuests] = useState<any[]>([]);
   const [guestUploads, setGuestUploads] = useState<any[]>([]); 
   
-  // NEW SAAS FEATURE: Search State
   const [searchQuery, setSearchQuery] = useState("");
-  
   const [loading, setLoading] = useState(true);
 
-  // FESTIVE WATERMARK COMPONENTS
+  // FIXED: Removed 'absolute' positioning so it acts as a header block inside the thick border
   const LargeWatermark = () => {
-    const textSize = eventName.length > 20 ? "text-[5px] md:text-[8px]" : "text-[6px] md:text-[10px]";
+    const textSize = eventName.length > 20 ? "text-[8px] md:text-[10px]" : "text-[10px] md:text-[12px]";
     
     return (
-      <div className={`absolute top-1.5 right-1.5 md:top-2 md:right-2 bg-gradient-to-r from-pink-500 via-purple-500 to-yellow-400 text-white ${textSize} font-black px-1.5 py-1 md:px-2.5 md:py-1.5 rounded-lg md:rounded-2xl shadow-lg transform rotate-2 md:rotate-3 border border-white z-0 pointer-events-none drop-shadow-md tracking-wider uppercase text-center max-w-[70%] md:max-w-[60%] flex items-center justify-center`}>
-        <span className="line-clamp-2 leading-tight break-words">🎉 {eventName} 🎈</span>
+      <div className={`w-full mb-3 bg-gradient-to-r from-pink-500 via-purple-500 to-yellow-400 text-white ${textSize} font-black px-2 md:px-3 py-1.5 md:py-2 rounded-lg shadow-sm tracking-wider uppercase text-center flex items-center justify-center`}>
+        <span className="line-clamp-1 leading-tight break-words">🎉 {eventName} 🎈</span>
       </div>
     );
   };
 
+  // TinyWatermark stays absolute for the circular Party Squad avatars
   const TinyWatermark = () => {
     const textSize = eventName.length > 20 ? "text-[4px] md:text-[6px]" : "text-[5px] md:text-[8px]";
     
@@ -44,7 +43,6 @@ export default function MemoryPage() {
     );
   };
 
-  // CAPTURE SCRIPT
   const captureAndDownload = async (elementId: string, filename: string) => {
     const element = document.getElementById(elementId);
     if (!element) return;
@@ -159,7 +157,6 @@ export default function MemoryPage() {
     return () => { supabase.removeChannel(channel); };
   }, [eventId]);
 
-  // NEW SAAS FEATURE: Filter Logic
   const filteredUploads = guestUploads.filter((photo) => {
       const searchLower = searchQuery.toLowerCase();
       return photo.uploader_name?.toLowerCase().includes(searchLower) || searchLower === "";
@@ -184,7 +181,6 @@ export default function MemoryPage() {
   return (
     <div className="min-h-[100dvh] bg-gray-900 font-sans text-white p-4 md:p-8 pb-20 selection:bg-purple-500 relative">
       
-      {/* PHASE 1 FIX: THE PORTRAIT LOCK OVERLAY */}
       <div className="hidden portrait:flex landscape:hidden md:!hidden fixed inset-0 z-[999] bg-gray-900/95 flex-col items-center justify-center text-center p-8 text-white backdrop-blur-xl">
           <div className="animate-[spin_2s_ease-in-out_infinite] mb-8 text-8xl">📱</div>
           <h2 className="text-4xl font-black uppercase tracking-widest mb-4 text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-yellow-400">Rotate Device</h2>
@@ -193,7 +189,6 @@ export default function MemoryPage() {
 
       <div className="max-w-6xl mx-auto space-y-16">
         
-        {/* HEADER */}
         <div className="text-center space-y-2 mt-6">
           <h1 className="text-4xl md:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-yellow-400 uppercase tracking-tighter drop-shadow-sm">
             {eventName}
@@ -201,12 +196,9 @@ export default function MemoryPage() {
           <p className="text-gray-400 font-bold tracking-widest uppercase text-xs md:text-sm">Official Memory Gallery</p>
         </div>
 
-        {/* NEW SAAS FEATURE: Sticky Search Bar */}
         <div className="sticky top-4 z-50 flex justify-center animate-in slide-in-from-top-4 duration-500">
             <div className="relative w-full max-w-md">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-xl">
-                    🔍
-                </div>
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-xl">🔍</div>
                 <input 
                     type="text" 
                     value={searchQuery} 
@@ -215,18 +207,13 @@ export default function MemoryPage() {
                     className="w-full pl-12 pr-12 py-4 rounded-full border-2 border-gray-700 bg-gray-800/90 backdrop-blur-md text-white font-bold outline-none focus:border-pink-500 focus:ring-4 focus:ring-pink-500/20 transition-all shadow-[0_0_30px_rgba(236,72,153,0.15)] placeholder:text-gray-400" 
                 />
                 {searchQuery && (
-                    <button 
-                        onClick={() => setSearchQuery("")} 
-                        className="absolute inset-y-0 right-0 pr-4 flex items-center hover:text-pink-400 text-gray-400 transition-colors"
-                        title="Clear search"
-                    >
+                    <button onClick={() => setSearchQuery("")} className="absolute inset-y-0 right-0 pr-4 flex items-center hover:text-pink-400 text-gray-400 transition-colors" title="Clear search">
                         <span className="bg-gray-700 rounded-full w-6 h-6 flex items-center justify-center font-black text-xs">✕</span>
                     </button>
                 )}
             </div>
         </div>
 
-        {/* SECTION 1: THE WINNERS (Unfiltered) */}
         {!searchQuery && (
           <div className="space-y-6">
               <h2 className="text-2xl font-black text-yellow-400 uppercase tracking-widest border-b-2 border-yellow-500/30 pb-2">🏆 Wall of Fame</h2>
@@ -235,10 +222,14 @@ export default function MemoryPage() {
               )}
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
                   {raffleWinners.map(w => (
-                      <div id={`raffle-card-${w.id}`} key={`raffle-${w.id}`} className="bg-white p-2 md:p-3 rounded-2xl shadow-xl transform rotate-2 hover:rotate-0 transition-all group relative">
+                      // FIXED: Increased padding to p-3 md:p-4 to create thicker border
+                      <div id={`raffle-card-${w.id}`} key={`raffle-${w.id}`} className="bg-white p-3 md:p-4 rounded-2xl shadow-xl transform rotate-2 hover:rotate-0 transition-all group relative">
+                          
+                          {/* FIXED: Banner moved outside of the image container to sit in the thick border */}
+                          <LargeWatermark /> 
+                          
                           <div className="relative overflow-hidden rounded-xl border-2 border-gray-100 bg-white">
                               <img src={w.proof_url} alt={w.nickname} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
-                              <LargeWatermark />
                               <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                                   <button onClick={() => captureAndDownload(`raffle-card-${w.id}`, `${eventSlug}-${w.nickname}-Winner.png`)} className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm active:scale-90 shadow-lg text-xs md:text-sm">⬇️</button>
                               </div>
@@ -250,10 +241,14 @@ export default function MemoryPage() {
                       </div>
                   ))}
                   {gameWinners.map(g => (
-                      <div id={`game-card-${g.id}`} key={`game-${g.id}`} className="bg-white p-2 md:p-3 rounded-2xl shadow-xl transform -rotate-2 hover:rotate-0 transition-all group relative">
+                      // FIXED: Increased padding to p-3 md:p-4
+                      <div id={`game-card-${g.id}`} key={`game-${g.id}`} className="bg-white p-3 md:p-4 rounded-2xl shadow-xl transform -rotate-2 hover:rotate-0 transition-all group relative">
+                          
+                          {/* FIXED: Banner moved outside of the image container */}
+                          <LargeWatermark />
+                          
                           <div className="relative overflow-hidden rounded-xl border-2 border-gray-100 bg-white">
                               <img src={g.proof_url} alt={g.name} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
-                              <LargeWatermark />
                               <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                                   <button onClick={() => captureAndDownload(`game-card-${g.id}`, `${eventSlug}-${g.name}-Winner.png`)} className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm active:scale-90 shadow-lg text-xs md:text-sm">⬇️</button>
                               </div>
@@ -268,7 +263,6 @@ export default function MemoryPage() {
           </div>
         )}
 
-        {/* SECTION 2: LIVE GUEST GALLERY */}
         <div className="space-y-6 pt-4">
             <div className="flex items-end justify-between border-b-2 border-pink-500/30 pb-2">
                 <h2 className="text-2xl font-black text-pink-400 uppercase tracking-widest">📸 Live Gallery</h2>
@@ -289,16 +283,22 @@ export default function MemoryPage() {
             ) : (
                 <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4 pt-4">
                     {filteredUploads.map((photo) => (
-                        <div id={`live-card-${photo.id}`} key={`photo-${photo.id}`} className="break-inside-avoid relative group rounded-2xl overflow-hidden shadow-lg border-2 border-pink-500/30 bg-gray-800">
-                            <img src={photo.photo_url} alt="Guest Upload" className="w-full h-auto object-cover block" loading="lazy" crossOrigin="anonymous" />
+                        // FIXED: Added p-3 md:p-4 to give Live Gallery photos a thick Polaroid border too
+                        <div id={`live-card-${photo.id}`} key={`photo-${photo.id}`} className="break-inside-avoid relative group rounded-2xl p-3 md:p-4 shadow-lg border-2 border-pink-500/30 bg-gray-800">
+                            
+                            {/* FIXED: Banner moved outside of the image container */}
                             <LargeWatermark />
-                            <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
-                                <button onClick={() => captureAndDownload(`live-card-${photo.id}`, `${eventSlug}-Memory-${photo.id}.png`)} className="bg-black/50 hover:bg-black/70 text-white p-2 md:p-2.5 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-xs md:text-sm">⬇️</button>
-                            </div>
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-4 flex items-end transition-all duration-300">
-                                <p className="text-white font-black text-xs md:text-sm uppercase tracking-wider line-clamp-2 break-words drop-shadow-md pb-1 w-full">
-                                    {photo.uploader_name || "Guest"}
-                                </p>
+                            
+                            <div className="relative rounded-xl overflow-hidden">
+                                <img src={photo.photo_url} alt="Guest Upload" className="w-full h-auto object-cover block" loading="lazy" crossOrigin="anonymous" />
+                                <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
+                                    <button onClick={() => captureAndDownload(`live-card-${photo.id}`, `${eventSlug}-Memory-${photo.id}.png`)} className="bg-black/50 hover:bg-black/70 text-white p-2 md:p-2.5 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-xs md:text-sm">⬇️</button>
+                                </div>
+                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-4 flex items-end transition-all duration-300">
+                                    <p className="text-white font-black text-xs md:text-sm uppercase tracking-wider line-clamp-2 break-words drop-shadow-md pb-1 w-full">
+                                        {photo.uploader_name || "Guest"}
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     ))}
@@ -306,7 +306,6 @@ export default function MemoryPage() {
             )}
         </div>
 
-        {/* SECTION 3: THE BUBBLE SQUAD */}
         <div className="space-y-6 pt-8">
             <h2 className="text-2xl font-black text-blue-400 uppercase tracking-widest border-b-2 border-blue-500/30 pb-2">🫧 The Party Squad</h2>
             <div className="flex flex-wrap justify-center gap-2 md:gap-4 pt-4">
