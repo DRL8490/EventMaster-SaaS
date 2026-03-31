@@ -18,6 +18,9 @@ export default function MemoryPage() {
   const [allGuests, setAllGuests] = useState<any[]>([]);
   const [guestUploads, setGuestUploads] = useState<any[]>([]); 
   
+  // NEW SAAS FEATURE: Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  
   const [loading, setLoading] = useState(true);
 
   // FESTIVE WATERMARK COMPONENTS
@@ -156,6 +159,17 @@ export default function MemoryPage() {
     return () => { supabase.removeChannel(channel); };
   }, [eventId]);
 
+  // NEW SAAS FEATURE: Filter Logic
+  const filteredUploads = guestUploads.filter((photo) => {
+      const searchLower = searchQuery.toLowerCase();
+      return photo.uploader_name?.toLowerCase().includes(searchLower) || searchLower === "";
+  });
+
+  const filteredGuests = allGuests.filter((guest) => {
+      const searchLower = searchQuery.toLowerCase();
+      return guest.nickname?.toLowerCase().includes(searchLower) || guest.full_name?.toLowerCase().includes(searchLower) || searchLower === "";
+  });
+
   if (loading) return <div className="min-h-[100dvh] flex items-center justify-center bg-gray-900 text-blue-400 font-black animate-pulse uppercase tracking-widest">Loading Memories...</div>;
 
   if (invalidEvent) return (
@@ -170,7 +184,7 @@ export default function MemoryPage() {
   return (
     <div className="min-h-[100dvh] bg-gray-900 font-sans text-white p-4 md:p-8 pb-20 selection:bg-purple-500 relative">
       
-{/* PHASE 1 FIX: THE PORTRAIT LOCK OVERLAY (Now Bulletproof) */}
+      {/* PHASE 1 FIX: THE PORTRAIT LOCK OVERLAY */}
       <div className="hidden portrait:flex landscape:hidden md:!hidden fixed inset-0 z-[999] bg-gray-900/95 flex-col items-center justify-center text-center p-8 text-white backdrop-blur-xl">
           <div className="animate-[spin_2s_ease-in-out_infinite] mb-8 text-8xl">📱</div>
           <h2 className="text-4xl font-black uppercase tracking-widest mb-4 text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-yellow-400">Rotate Device</h2>
@@ -187,98 +201,100 @@ export default function MemoryPage() {
           <p className="text-gray-400 font-bold tracking-widest uppercase text-xs md:text-sm">Official Memory Gallery</p>
         </div>
 
-        {/* SECTION 1: THE WINNERS */}
-        <div className="space-y-6">
-            <h2 className="text-2xl font-black text-yellow-400 uppercase tracking-widest border-b-2 border-yellow-500/30 pb-2">🏆 Wall of Fame</h2>
-            {raffleWinners.length === 0 && gameWinners.length === 0 && (
-                <p className="text-gray-500 italic font-bold text-center py-8">Winners will appear here once the games begin!</p>
-            )}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
-                
-                {/* RAFFLE WINNERS */}
-                {raffleWinners.map(w => (
-                    <div id={`raffle-card-${w.id}`} key={`raffle-${w.id}`} className="bg-white p-2 md:p-3 rounded-2xl shadow-xl transform rotate-2 hover:rotate-0 transition-all group relative">
-                        <div className="relative overflow-hidden rounded-xl border-2 border-gray-100 bg-white">
-                            <img src={w.proof_url} alt={w.nickname} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
-                            
-                            <LargeWatermark />
-
-                            <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
-                                <button 
-                                    onClick={() => captureAndDownload(`raffle-card-${w.id}`, `${eventSlug}-${w.nickname}-Winner.png`)}
-                                    className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm active:scale-90 shadow-lg text-xs md:text-sm"
-                                    title="Download Card"
-                                >
-                                    ⬇️
-                                </button>
-                            </div>
-                        </div>
-                        <div className="pt-3 pb-1 text-center bg-white">
-                            <p className="text-gray-900 font-black uppercase text-sm md:text-base leading-tight truncate">{w.nickname}</p>
-                            <p className="text-pink-500 font-bold text-[10px] md:text-xs uppercase mt-0.5 truncate">{w.prize_won}</p>
-                        </div>
-                    </div>
-                ))}
-
-                {/* GAME WINNERS */}
-                {gameWinners.map(g => (
-                    <div id={`game-card-${g.id}`} key={`game-${g.id}`} className="bg-white p-2 md:p-3 rounded-2xl shadow-xl transform -rotate-2 hover:rotate-0 transition-all group relative">
-                        <div className="relative overflow-hidden rounded-xl border-2 border-gray-100 bg-white">
-                            <img src={g.proof_url} alt={g.name} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
-                            
-                            <LargeWatermark />
-
-                            <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
-                                <button 
-                                    onClick={() => captureAndDownload(`game-card-${g.id}`, `${eventSlug}-${g.name}-Winner.png`)}
-                                    className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm active:scale-90 shadow-lg text-xs md:text-sm"
-                                    title="Download Card"
-                                >
-                                    ⬇️
-                                </button>
-                            </div>
-                        </div>
-                        <div className="pt-3 pb-1 text-center bg-white">
-                            <p className="text-gray-900 font-black uppercase text-sm md:text-base leading-tight truncate px-1">{g.name}</p>
-                            <p className="text-pink-500 font-bold text-[10px] md:text-xs uppercase mt-0.5">Game Winner</p>
-                        </div>
-                    </div>
-                ))}
+        {/* NEW SAAS FEATURE: Sticky Search Bar */}
+        <div className="sticky top-4 z-50 flex justify-center animate-in slide-in-from-top-4 duration-500">
+            <div className="relative w-full max-w-md">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-xl">
+                    🔍
+                </div>
+                <input 
+                    type="text" 
+                    value={searchQuery} 
+                    onChange={(e) => setSearchQuery(e.target.value)} 
+                    placeholder="Search for a guest..." 
+                    className="w-full pl-12 pr-12 py-4 rounded-full border-2 border-gray-700 bg-gray-800/90 backdrop-blur-md text-white font-bold outline-none focus:border-pink-500 focus:ring-4 focus:ring-pink-500/20 transition-all shadow-[0_0_30px_rgba(236,72,153,0.15)] placeholder:text-gray-400" 
+                />
+                {searchQuery && (
+                    <button 
+                        onClick={() => setSearchQuery("")} 
+                        className="absolute inset-y-0 right-0 pr-4 flex items-center hover:text-pink-400 text-gray-400 transition-colors"
+                        title="Clear search"
+                    >
+                        <span className="bg-gray-700 rounded-full w-6 h-6 flex items-center justify-center font-black text-xs">✕</span>
+                    </button>
+                )}
             </div>
         </div>
 
+        {/* SECTION 1: THE WINNERS (Unfiltered) */}
+        {!searchQuery && (
+          <div className="space-y-6">
+              <h2 className="text-2xl font-black text-yellow-400 uppercase tracking-widest border-b-2 border-yellow-500/30 pb-2">🏆 Wall of Fame</h2>
+              {raffleWinners.length === 0 && gameWinners.length === 0 && (
+                  <p className="text-gray-500 italic font-bold text-center py-8">Winners will appear here once the games begin!</p>
+              )}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+                  {raffleWinners.map(w => (
+                      <div id={`raffle-card-${w.id}`} key={`raffle-${w.id}`} className="bg-white p-2 md:p-3 rounded-2xl shadow-xl transform rotate-2 hover:rotate-0 transition-all group relative">
+                          <div className="relative overflow-hidden rounded-xl border-2 border-gray-100 bg-white">
+                              <img src={w.proof_url} alt={w.nickname} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
+                              <LargeWatermark />
+                              <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                                  <button onClick={() => captureAndDownload(`raffle-card-${w.id}`, `${eventSlug}-${w.nickname}-Winner.png`)} className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm active:scale-90 shadow-lg text-xs md:text-sm">⬇️</button>
+                              </div>
+                          </div>
+                          <div className="pt-3 pb-1 text-center bg-white">
+                              <p className="text-gray-900 font-black uppercase text-sm md:text-base leading-tight truncate">{w.nickname}</p>
+                              <p className="text-pink-500 font-bold text-[10px] md:text-xs uppercase mt-0.5 truncate">{w.prize_won}</p>
+                          </div>
+                      </div>
+                  ))}
+                  {gameWinners.map(g => (
+                      <div id={`game-card-${g.id}`} key={`game-${g.id}`} className="bg-white p-2 md:p-3 rounded-2xl shadow-xl transform -rotate-2 hover:rotate-0 transition-all group relative">
+                          <div className="relative overflow-hidden rounded-xl border-2 border-gray-100 bg-white">
+                              <img src={g.proof_url} alt={g.name} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
+                              <LargeWatermark />
+                              <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                                  <button onClick={() => captureAndDownload(`game-card-${g.id}`, `${eventSlug}-${g.name}-Winner.png`)} className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm active:scale-90 shadow-lg text-xs md:text-sm">⬇️</button>
+                              </div>
+                          </div>
+                          <div className="pt-3 pb-1 text-center bg-white">
+                              <p className="text-gray-900 font-black uppercase text-sm md:text-base leading-tight truncate px-1">{g.name}</p>
+                              <p className="text-pink-500 font-bold text-[10px] md:text-xs uppercase mt-0.5">Game Winner</p>
+                          </div>
+                      </div>
+                  ))}
+              </div>
+          </div>
+        )}
+
         {/* SECTION 2: LIVE GUEST GALLERY */}
-        <div className="space-y-6 pt-8">
+        <div className="space-y-6 pt-4">
             <div className="flex items-end justify-between border-b-2 border-pink-500/30 pb-2">
                 <h2 className="text-2xl font-black text-pink-400 uppercase tracking-widest">📸 Live Gallery</h2>
-                <a href={`/${eventSlug}/upload`} className="text-[10px] md:text-xs font-black bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-400 hover:to-purple-400 text-white px-3 py-1.5 rounded-lg uppercase tracking-widest transition-colors mb-1 shadow-md border border-white/20">
-                    + Add Photo
-                </a>
+                {!searchQuery && (
+                  <a href={`/${eventSlug}/upload`} className="text-[10px] md:text-xs font-black bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-400 hover:to-purple-400 text-white px-3 py-1.5 rounded-lg uppercase tracking-widest transition-colors mb-1 shadow-md border border-white/20">
+                      + Add Photo
+                  </a>
+                )}
             </div>
             
-            {guestUploads.length === 0 ? (
+            {filteredUploads.length === 0 ? (
                 <div className="bg-gray-800/50 border-2 border-dashed border-gray-700 rounded-3xl p-12 text-center mt-4">
-                    <p className="text-4xl mb-3">📱</p>
-                    <p className="text-gray-400 font-bold uppercase tracking-widest text-sm">Be the first to share a memory!</p>
+                    <p className="text-4xl mb-3">{searchQuery ? '🕵️‍♂️' : '📱'}</p>
+                    <p className="text-gray-400 font-bold uppercase tracking-widest text-sm">
+                        {searchQuery ? `No photos found for "${searchQuery}"` : "Be the first to share a memory!"}
+                    </p>
                 </div>
             ) : (
                 <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4 pt-4">
-                    {guestUploads.map((photo) => (
+                    {filteredUploads.map((photo) => (
                         <div id={`live-card-${photo.id}`} key={`photo-${photo.id}`} className="break-inside-avoid relative group rounded-2xl overflow-hidden shadow-lg border-2 border-pink-500/30 bg-gray-800">
                             <img src={photo.photo_url} alt="Guest Upload" className="w-full h-auto object-cover block" loading="lazy" crossOrigin="anonymous" />
-                            
                             <LargeWatermark />
-
                             <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
-                                <button 
-                                    onClick={() => captureAndDownload(`live-card-${photo.id}`, `${eventSlug}-Memory-${photo.id}.png`)}
-                                    className="bg-black/50 hover:bg-black/70 text-white p-2 md:p-2.5 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-xs md:text-sm"
-                                    title="Download Photo"
-                                >
-                                    ⬇️
-                                </button>
+                                <button onClick={() => captureAndDownload(`live-card-${photo.id}`, `${eventSlug}-Memory-${photo.id}.png`)} className="bg-black/50 hover:bg-black/70 text-white p-2 md:p-2.5 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-xs md:text-sm">⬇️</button>
                             </div>
-
                             <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/50 to-transparent p-4 flex items-end transition-all duration-300">
                                 <p className="text-white font-black text-xs md:text-sm uppercase tracking-wider line-clamp-2 break-words drop-shadow-md pb-1 w-full">
                                     {photo.uploader_name || "Guest"}
@@ -294,34 +310,28 @@ export default function MemoryPage() {
         <div className="space-y-6 pt-8">
             <h2 className="text-2xl font-black text-blue-400 uppercase tracking-widest border-b-2 border-blue-500/30 pb-2">🫧 The Party Squad</h2>
             <div className="flex flex-wrap justify-center gap-2 md:gap-4 pt-4">
-                {allGuests.map(g => (
+                {filteredGuests.map(g => (
                     <div id={`bubble-card-${g.id}`} key={`guest-${g.id}`} className="flex flex-col items-center w-auto group relative p-4 pt-8 pr-8 bg-transparent">
-                        
                         <div className="relative">
                             <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.5)] bg-white relative">
                                 <img src={g.photo_url} alt={g.nickname} className="w-full h-full object-cover" crossOrigin="anonymous" />
                             </div>
-                            
                             <TinyWatermark />
                         </div>
-
                         <div data-ignore="true" className="absolute top-2 left-0 md:-left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
-                            <button 
-                                onClick={() => captureAndDownload(`bubble-card-${g.id}`, `${eventSlug}-${g.nickname}-Avatar.png`)}
-                                className="bg-black/60 hover:bg-black/80 text-white p-2 md:p-3 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-xs"
-                                title="Download Avatar"
-                            >
-                                ⬇️
-                            </button>
+                            <button onClick={() => captureAndDownload(`bubble-card-${g.id}`, `${eventSlug}-${g.nickname}-Avatar.png`)} className="bg-black/60 hover:bg-black/80 text-white p-2 md:p-3 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-xs">⬇️</button>
                         </div>
-
                         <p className="mt-3 text-center text-xs md:text-sm font-black text-gray-300 uppercase tracking-wider truncate w-32 md:w-40">
                             {g.nickname}
                         </p>
                     </div>
                 ))}
             </div>
-            {allGuests.length === 0 && <p className="text-center text-gray-500 font-bold">No guests have arrived yet!</p>}
+            {filteredGuests.length === 0 && (
+                <p className="text-center text-gray-500 font-bold">
+                    {searchQuery ? `No guests found for "${searchQuery}"` : "No guests have arrived yet!"}
+                </p>
+            )}
         </div>
 
       </div>
