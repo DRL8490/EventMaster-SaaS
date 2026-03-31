@@ -13,14 +13,19 @@ export default function ProjectorControl({ activeScreen, changeScreen, channel, 
   return (
     <div className="bg-white rounded-3xl shadow-xl p-6 border-4 border-gray-800 flex flex-col">
         <h2 className="text-sm font-black text-gray-800 uppercase tracking-widest mb-4">📺 Projector Screen Control</h2>
-        <div className="grid grid-cols-4 gap-3 mb-6">
-            <button onClick={() => changeScreen("pregame")} className={`py-4 rounded-xl font-black text-xs md:text-sm uppercase transition-all ${activeScreen === "pregame" ? "bg-blue-600 text-white shadow-inner" : "bg-gray-100 text-gray-500 hover:bg-blue-100"}`}>🎈 Pregame</button>
-            <button onClick={() => changeScreen("raffle")} className={`py-4 rounded-xl font-black text-xs md:text-sm uppercase transition-all ${activeScreen === "raffle" ? "bg-yellow-500 text-yellow-900 shadow-inner" : "bg-gray-100 text-gray-500 hover:bg-yellow-100"}`}>🎟️ Raffle</button>
-            <button onClick={() => changeScreen("games")} className={`py-4 rounded-xl font-black text-xs md:text-sm uppercase transition-all ${activeScreen === "games" ? "bg-green-500 text-white shadow-inner" : "bg-gray-100 text-gray-500 hover:bg-green-100"}`}>🎲 Games</button>
-            <button onClick={() => changeScreen("qr")} className={`py-4 rounded-xl font-black text-xs md:text-sm uppercase transition-all ${activeScreen === "qr" ? "bg-purple-600 text-white shadow-inner" : "bg-gray-100 text-gray-500 hover:bg-purple-100"}`}>📱 QR Code</button>
+        
+        {/* UPDATED: Changed grid to flex to fit 5 buttons gracefully */}
+        <div className="flex flex-wrap gap-2 mb-6">
+            <button onClick={() => changeScreen("pregame")} className={`flex-1 min-w-[100px] py-4 rounded-xl font-black text-[10px] md:text-xs uppercase transition-all ${activeScreen === "pregame" ? "bg-blue-600 text-white shadow-inner" : "bg-gray-100 text-gray-500 hover:bg-blue-100"}`}>🎈 Pregame</button>
+            <button onClick={() => changeScreen("raffle")} className={`flex-1 min-w-[100px] py-4 rounded-xl font-black text-[10px] md:text-xs uppercase transition-all ${activeScreen === "raffle" ? "bg-yellow-500 text-yellow-900 shadow-inner" : "bg-gray-100 text-gray-500 hover:bg-yellow-100"}`}>🎟️ Raffle</button>
+            <button onClick={() => changeScreen("games")} className={`flex-1 min-w-[100px] py-4 rounded-xl font-black text-[10px] md:text-xs uppercase transition-all ${activeScreen === "games" ? "bg-green-500 text-white shadow-inner" : "bg-gray-100 text-gray-500 hover:bg-green-100"}`}>🎲 Games</button>
+            <button onClick={() => changeScreen("qr")} className={`flex-1 min-w-[100px] py-4 rounded-xl font-black text-[10px] md:text-xs uppercase transition-all ${activeScreen === "qr" ? "bg-purple-600 text-white shadow-inner" : "bg-gray-100 text-gray-500 hover:bg-purple-100"}`}>📱 QR Code</button>
+            
+            {/* NEW PROGRAMME BUTTON */}
+            <button onClick={() => changeScreen("programme")} className={`flex-1 min-w-[100px] py-4 rounded-xl font-black text-[10px] md:text-xs uppercase transition-all ${activeScreen === "programme" ? "bg-gray-800 text-white shadow-inner" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>📅 Programme</button>
         </div>
 
-        <div className={`w-full bg-gray-900 rounded-2xl overflow-hidden border-4 border-gray-800 relative shadow-inner transition-all ${activeScreen === "raffle" ? "hidden" : "h-72"}`}>
+        <div className={`w-full bg-gray-900 rounded-2xl overflow-hidden border-4 border-gray-800 relative shadow-inner transition-all ${activeScreen === "raffle" || activeScreen === "programme" ? "hidden" : "h-72"}`}>
             <div className="absolute top-3 left-3 bg-red-600 text-white text-[10px] font-black px-2 py-1 rounded z-20 flex items-center gap-2 shadow-md">
                 <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span> PREVIEW
             </div>

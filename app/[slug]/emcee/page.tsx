@@ -10,6 +10,9 @@ import GamesControl from "../../../components/emcee/GamesControl";
 import RaffleControl from "../../../components/emcee/RaffleControl";
 import GuestRoster from "../../../components/emcee/GuestRoster";
 
+// NEW SAAS FEATURE: Import Programme Tab
+import ProgrammeTab from "../../../components/admin/ProgrammeTab";
+
 export default function EmceePage() {
   const params = useParams();
   const eventSlug = params.slug;
@@ -24,6 +27,10 @@ export default function EmceePage() {
   const [guests, setGuests] = useState<any[]>([]);
   const [unclaimedPrizes, setUnclaimedPrizes] = useState<any[]>([]);
   const [games, setGames] = useState<any[]>([]); 
+  
+  // NEW SAAS FEATURE: Programme State
+  const [programmeItems, setProgrammeItems] = useState<any[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [channel, setChannel] = useState<any>(null);
 
@@ -33,8 +40,8 @@ export default function EmceePage() {
   
   const [prizeDisplayed, setPrizeDisplayed] = useState(false);
   
-  // REVERTED: strictly core screens
-  const [activeScreen, setActiveScreen] = useState<"pregame"|"raffle"|"games"|"qr">("raffle");
+  // UPDATED: Added "programme" to allowed types
+  const [activeScreen, setActiveScreen] = useState<"pregame"|"raffle"|"games"|"qr"|"programme">("raffle");
 
   const [timer, setTimer] = useState(60);
   const [timerStatus, setTimerStatus] = useState<"idle" | "running" | "paused">("idle");
@@ -56,9 +63,13 @@ export default function EmceePage() {
     setLoading(true);
     const { data: guestData } = await supabase.from("guests").select("*").eq("event_id", eventId); 
     const { data: rsvpData } = await supabase.from("rsvps").select("*").eq("event_id", eventId); 
+    
+    // UPDATED: Fetch Games AND Programme
     const { data: gameData } = await supabase.from("games").select("*").eq("event_id", eventId).order("id", { ascending: true });
+    const { data: programmeData } = await supabase.from("programme_items").select("*").eq("event_id", eventId).order("order_index", { ascending: true });
 
     if (gameData) setGames(gameData);
+    if (programmeData) setProgrammeItems(programmeData);
 
     if (guestData) {
       const rsvpList = rsvpData || []; 
@@ -66,7 +77,7 @@ export default function EmceePage() {
 
       const mappedGuests = [...guestData].map(g => {
           const rsvp = rsvpList.find(r => r.full_name === g.full_name);
-          const ref = rsvp ? (rsvp.referral || "") : "";
+          const ref = g.referral ? g.referral : (rsvp ? (rsvp.referral || "") : "");
           let currentStatus = g.status;
           if (ref.toLowerCase() === "host" && currentStatus === "eligible") {
               guestsToUpdate.push(g.id);
@@ -99,6 +110,13 @@ export default function EmceePage() {
     const { data: prizeData } = await supabase.from("prizes").select("*").eq("event_id", eventId).eq("status", "unclaimed").order("draw_order", { ascending: true });
     if (prizeData) setUnclaimedPrizes(prizeData);
     setLoading(false);
+  };
+
+  // NEW SAAS FEATURE: Helper for Programme DB actions
+  const executeDbAction = async (action: any) => {
+    const { error } = await action;
+    if (error) { alert("🚨 Database Error: " + error.message); console.error(error); }
+    fetchData();
   };
 
   useEffect(() => {
@@ -140,9 +158,11 @@ export default function EmceePage() {
   const pauseTimer = () => { setTimerStatus("paused"); channel?.send({ type: "broadcast", event: "timer_sync", payload: { time: timer, status: "paused" }}); };
   const resumeTimer = () => { setTimerStatus("running"); channel?.send({ type: "broadcast", event: "timer_sync", payload: { time: timer, status: "running" }}); };
 
-  const changeScreen = async (mode: "pregame" | "raffle" | "games" | "qr") => {
+  // UPDATED: Added programme to type signature
+  const changeScreen = async (mode: "pregame" | "raffle" | "games" | "qr" | "programme") => {
     setActiveScreen(mode);
-    if (channel) await channel.send({ type: "broadcast", event: "set_display", payload: { mode: mode } });
+    // Note: Programme doesn't send anything to the TV, it's just for the Emcee!
+    if (mode !== "programme" && channel) await channel.send({ type: "broadcast", event: "set_display", payload: { mode: mode } });
   };
 
   const playSound = async (soundFile: string) => { if (channel) await channel.send({ type: "broadcast", event: "play_sound", payload: { sound: soundFile } }); };
@@ -254,6 +274,13 @@ export default function EmceePage() {
           </div>
 
           <ProjectorControl activeScreen={activeScreen} changeScreen={changeScreen} channel={channel} setPrizeDisplayed={setPrizeDisplayed} setTimerStatus={setTimerStatus} />
+
+          {/* NEW SAAS FEATURE: Programme Tab rendering */}
+          {activeScreen === "programme" && (
+            <div className="bg-white rounded-3xl shadow-xl p-6 border-2 border-gray-200 animate-in slide-in-from-bottom-4 duration-300">
+                <ProgrammeTab eventId={eventId} items={programmeItems} fetchData={fetchData} executeDbAction={executeDbAction} />
+            </div>
+          )}
 
           {activeScreen === "games" && <GamesControl games={games} playSound={playSound} channel={channel} handleUploadGameProof={handleUploadGameProof} />}
 
