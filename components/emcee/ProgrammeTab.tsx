@@ -5,8 +5,10 @@ import { supabase } from "../../lib/supabaseClient";
 export default function ProgrammeTab({ eventId, items, fetchData, executeDbAction }: any) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  
   const [formData, setFormData] = useState({ title: "", time_label: "", description: "" });
+
+  // NEW SAAS FEATURE: Drag and Drop State
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   // Sort items safely by order_index
   const sortedItems = [...(items || [])].sort((a, b) => a.order_index - b.order_index);
@@ -40,16 +42,44 @@ export default function ProgrammeTab({ eventId, items, fetchData, executeDbActio
       resetForm();
   };
 
-  const handleMove = async (index: number, direction: "up" | "down") => {
-      if (direction === "up" && index === 0) return;
-      if (direction === "down" && index === sortedItems.length - 1) return;
+  // --- DRAG AND DROP LOGIC ---
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+      setDraggedIndex(index);
+      e.dataTransfer.effectAllowed = "move";
+      // Slight delay to allow the ghost image to generate before fading the original
+      setTimeout(() => {
+          (e.target as HTMLElement).style.opacity = "0.4";
+      }, 0);
+  };
 
-      const itemA = sortedItems[index];
-      const itemB = sortedItems[direction === "up" ? index - 1 : index + 1];
+  const handleDragEnd = (e: React.DragEvent) => {
+      (e.target as HTMLElement).style.opacity = "1";
+      setDraggedIndex(null);
+  };
 
-      // Swap their order_indexes in the database sequentially
-      await executeDbAction(supabase.from("programme_items").update({ order_index: itemB.order_index }).eq("id", itemA.id));
-      await executeDbAction(supabase.from("programme_items").update({ order_index: itemA.order_index }).eq("id", itemB.id));
+  const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault(); // Necessary to allow dropping
+      e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = async (e: React.DragEvent, dropIndex: number) => {
+      e.preventDefault();
+      if (draggedIndex === null || draggedIndex === dropIndex) return;
+
+      // 1. Create a copy of the array and reorder it locally
+      const newItems = [...sortedItems];
+      const [draggedItem] = newItems.splice(draggedIndex, 1);
+      newItems.splice(dropIndex, 0, draggedItem);
+
+      // 2. Loop through the newly ordered array and update any rows where the index changed
+      for (let i = 0; i < newItems.length; i++) {
+          if (newItems[i].order_index !== i) {
+              await supabase.from("programme_items").update({ order_index: i }).eq("id", newItems[i].id);
+          }
+      }
+      
+      // 3. Refresh the UI with the final database state
+      fetchData();
   };
 
   return (
@@ -66,7 +96,7 @@ export default function ProgrammeTab({ eventId, items, fetchData, executeDbActio
 
         {/* ADD / EDIT FORM */}
         {(isAdding || editingId) && (
-            <div className="bg-blue-50 p-6 rounded-2xl border-2 border-blue-100 mb-6 shadow-inner">
+            <div className="bg-blue-50 p-6 rounded-2xl border-2 border-blue-100 mb-6 shadow-inner animate-in slide-in-from-top-2">
                 <h3 className="font-black text-blue-800 uppercase mb-4 text-sm tracking-widest">{editingId ? "Edit Item" : "New Programme Item"}</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                     <div className="md:col-span-2">
@@ -89,21 +119,31 @@ export default function ProgrammeTab({ eventId, items, fetchData, executeDbActio
             </div>
         )}
 
-        {/* PROGRAMME LIST */}
+        {/* DRAGGABLE PROGRAMME LIST */}
         <div className="space-y-3">
             {sortedItems.map((item, index) => (
-                <div key={item.id} className="bg-white border-2 border-gray-100 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm hover:shadow-md transition-all hover:border-blue-200">
+                <div 
+                    key={item.id} 
+                    draggable 
+                    onDragStart={(e) => handleDragStart(e, index)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(e, index)}
+                    className="bg-white border-2 border-gray-100 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm hover:shadow-md transition-all hover:border-blue-300 cursor-grab active:cursor-grabbing"
+                >
                     
-                    {/* Left: Move Controls */}
-                    <div className="flex md:flex-col gap-1">
-                        <button onClick={() => handleMove(index, "up")} disabled={index === 0} className="w-8 h-8 flex items-center justify-center bg-gray-50 hover:bg-blue-100 text-gray-500 hover:text-blue-600 rounded-lg disabled:opacity-30 transition-all font-black">▲</button>
-                        <button onClick={() => handleMove(index, "down")} disabled={index === sortedItems.length - 1} className="w-8 h-8 flex items-center justify-center bg-gray-50 hover:bg-blue-100 text-gray-500 hover:text-blue-600 rounded-lg disabled:opacity-30 transition-all font-black">▼</button>
+                    {/* UPDATED Left Side: Drag Handle & Order Number */}
+                    <div className="flex items-center gap-4 w-full md:w-auto border-b md:border-b-0 pb-3 md:pb-0 border-gray-100">
+                        <span className="text-gray-300 hover:text-gray-500 font-black text-2xl px-1">⋮⋮</span>
+                        <div className="bg-blue-100 border-2 border-blue-200 text-blue-700 font-black w-10 h-10 rounded-full flex items-center justify-center shadow-inner text-lg">
+                            {index + 1}
+                        </div>
                     </div>
 
                     {/* Middle: Info */}
                     <div className="flex-1 w-full text-center md:text-left">
                         <div className="flex flex-col md:flex-row md:items-center gap-2 mb-1">
-                            {item.time_label && <span className="bg-blue-100 text-blue-800 font-black text-xs px-2 py-1 rounded-md uppercase tracking-widest w-max mx-auto md:mx-0">{item.time_label}</span>}
+                            {item.time_label && <span className="bg-blue-100 text-blue-800 font-black text-xs px-2 py-1 rounded-md uppercase tracking-widest w-max mx-auto md:mx-0 border border-blue-200">{item.time_label}</span>}
                             <h4 className="font-black text-lg text-gray-800">{item.title}</h4>
                         </div>
                         {item.description && <p className="text-sm font-medium text-gray-500">{item.description}</p>}
@@ -111,11 +151,12 @@ export default function ProgrammeTab({ eventId, items, fetchData, executeDbActio
 
                     {/* Right: Actions */}
                     <div className="flex gap-2 w-full md:w-auto justify-center">
-                        <button onClick={() => { setEditingId(item.id); setFormData({ title: item.title, time_label: item.time_label || "", description: item.description || "" }); setIsAdding(false); }} className="text-blue-600 font-bold text-xs bg-blue-50 hover:bg-blue-600 hover:text-white px-3 py-2 rounded-lg transition-all">✏️ Edit</button>
-                        <button onClick={() => window.confirm(`Delete ${item.title}?`) && executeDbAction(supabase.from("programme_items").delete().eq("id", item.id))} className="text-red-600 font-bold text-xs bg-red-50 hover:bg-red-500 hover:text-white px-3 py-2 rounded-lg transition-all">🗑️</button>
+                        <button onClick={() => { setEditingId(item.id); setFormData({ title: item.title, time_label: item.time_label || "", description: item.description || "" }); setIsAdding(false); }} className="text-blue-600 font-bold text-xs bg-blue-50 hover:bg-blue-600 hover:text-white px-3 py-2 rounded-lg transition-all border border-blue-100 hover:border-blue-600">✏️ Edit</button>
+                        <button onClick={() => window.confirm(`Delete ${item.title}?`) && executeDbAction(supabase.from("programme_items").delete().eq("id", item.id))} className="text-red-600 font-bold text-xs bg-red-50 hover:bg-red-500 hover:text-white px-3 py-2 rounded-lg transition-all border border-red-100 hover:border-red-500">🗑️</button>
                     </div>
                 </div>
             ))}
+            
             {sortedItems.length === 0 && !isAdding && (
                 <div className="text-center py-10 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200">
                     <p className="text-4xl mb-2">📝</p>
