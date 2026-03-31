@@ -43,6 +43,9 @@ export default function EmceePage() {
   // UPDATED: Added "programme" to allowed types
   const [activeScreen, setActiveScreen] = useState<"pregame"|"raffle"|"games"|"qr"|"programme">("raffle");
 
+  // NEW SAAS FEATURE: Mobile DJ Drawer State
+  const [isDjDrawerOpen, setIsDjDrawerOpen] = useState(false);
+
   const [timer, setTimer] = useState(60);
   const [timerStatus, setTimerStatus] = useState<"idle" | "running" | "paused">("idle");
   const [pendingProofGuest, setPendingProofGuest] = useState<any>(null);
@@ -266,18 +269,19 @@ export default function EmceePage() {
   }
 
   return (
-    <div className="flex w-full min-h-screen bg-gray-100 font-sans">
-      <div className="w-[85%] p-4 md:p-8 overflow-y-auto pb-20 flex flex-col items-center">
+    <div className="flex w-full min-h-screen bg-gray-100 font-sans relative">
+      
+      {/* MAIN CONTENT WRAPPER: Full width on mobile, 85% on desktop */}
+      <div className="w-full lg:w-[85%] p-3 md:p-8 overflow-y-auto pb-32 flex flex-col items-center">
         <div className="w-full max-w-5xl space-y-6">
-          <div className="bg-white rounded-3xl shadow-xl p-6 border-2 border-gray-200">
-            <h1 className="text-3xl font-black text-blue-600 uppercase text-center tracking-widest">🎤 Emcee Director</h1>
+          <div className="bg-white rounded-3xl shadow-xl p-4 md:p-6 border-2 border-gray-200">
+            <h1 className="text-2xl md:text-3xl font-black text-blue-600 uppercase text-center tracking-widest">🎤 Emcee Director</h1>
           </div>
 
           <ProjectorControl activeScreen={activeScreen} changeScreen={changeScreen} channel={channel} setPrizeDisplayed={setPrizeDisplayed} setTimerStatus={setTimerStatus} />
 
-          {/* NEW SAAS FEATURE: Programme Tab rendering */}
           {activeScreen === "programme" && (
-            <div className="bg-white rounded-3xl shadow-xl p-6 border-2 border-gray-200 animate-in slide-in-from-bottom-4 duration-300">
+            <div className="bg-white rounded-3xl shadow-xl p-4 md:p-6 border-2 border-gray-200 animate-in slide-in-from-bottom-4 duration-300">
                 <ProgrammeTab eventId={eventId} items={programmeItems} fetchData={fetchData} executeDbAction={executeDbAction} />
             </div>
           )}
@@ -298,7 +302,18 @@ export default function EmceePage() {
           )}
         </div>
       </div>
-      <DjBoard playSound={playSound} />
+
+      {/* NEW SAAS FEATURE: Mobile Floating Action Button (FAB) for Soundboard */}
+      <button 
+        onClick={() => setIsDjDrawerOpen(true)} 
+        className="lg:hidden fixed bottom-6 right-6 bg-purple-600 hover:bg-purple-700 text-white rounded-full w-16 h-16 shadow-[0_10px_25px_rgba(147,51,234,0.5)] z-30 flex items-center justify-center text-3xl active:scale-90 transition-transform border-4 border-white"
+      >
+        🎛️
+      </button>
+
+      {/* DJ BOARD: Receives state to act as a drawer on mobile */}
+      <DjBoard playSound={playSound} isOpen={isDjDrawerOpen} onClose={() => setIsDjDrawerOpen(false)} />
+    
     </div>
   );
 }
