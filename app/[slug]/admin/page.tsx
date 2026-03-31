@@ -120,7 +120,8 @@ export default function AdminPage() {
 
         const mappedGuests = [...guestRes.data].sort((a, b) => a.id - b.id).map(g => {
             const rsvp = rsvpList.find(r => r.full_name === g.full_name);
-            const ref = rsvp ? (rsvp.referral || "") : "";
+            // This tells the app: "Use the Group saved in the guests table FIRST. Only use the RSVP table if the guest's Group is blank!"
+const ref = g.referral ? g.referral : (rsvp ? (rsvp.referral || "") : "");
             
             let currentStatus = g.status;
             if (ref.toLowerCase() === "host" && currentStatus === "eligible") {
