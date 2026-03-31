@@ -119,7 +119,7 @@ export default function GuestsTab({ guests, fetchData, executeDbAction, stats, u
                             <td className="p-4 text-center">
                                 <select 
                                     value={g.referral || "None"} 
-                                    onChange={(e) => executeDbAction(supabase.from("guests").update({ referral: e.target.value === "None" ? null : e.target.value }).eq("id", g.id))} 
+                                    onChange={(e) => executeDbAction(supabase.from("guests").update({ referral: e.target.value }).eq("id", g.id))}
                                     className="bg-purple-50 border-2 border-purple-100 hover:border-purple-400 rounded-lg p-2 text-xs font-black uppercase text-gray-700 outline-none cursor-pointer transition-all"
                                 >
                                     <option value="None">None</option>
