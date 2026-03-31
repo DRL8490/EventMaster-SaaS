@@ -257,24 +257,23 @@ export default function EmceePage() {
   }
 
   return (
-    <div className="flex w-full min-h-screen bg-gray-100 font-sans relative">
+    <div className="flex w-full min-h-screen bg-gray-200 font-sans relative">
       
-      {/* REDUCED PADDING: p-3 md:p-8 -> p-2 md:p-4 */}
-      <div className="w-full lg:w-[85%] p-2 md:p-4 overflow-y-auto pb-24 flex flex-col items-center">
+      {/* ULTRA-COMPACT: p-1, minimal bottom padding */}
+      <div className="w-full lg:w-[85%] p-1 md:p-2 overflow-y-auto pb-16 mx-auto">
         
-        {/* TIGHTER VERTICAL SPACING: space-y-6 -> space-y-3 */}
-        <div className="w-full max-w-5xl space-y-3 md:space-y-4">
+        {/* ULTRA-COMPACT: space-y-1 */}
+        <div className="w-full max-w-5xl space-y-1">
           
-          {/* TIGHTER HEADER CARD: rounded-3xl p-4 -> rounded-2xl p-3 */}
-          <div className="bg-white rounded-2xl shadow-sm p-3 border-2 border-gray-200">
-            {/* TIGHTER TEXT: text-2xl -> text-xl */}
-            <h1 className="text-xl md:text-2xl font-black text-blue-600 uppercase text-center tracking-widest">🎤 Emcee Director</h1>
+          {/* ULTRA-COMPACT HEADER */}
+          <div className="bg-white rounded-sm shadow-sm p-2 border border-gray-300 flex justify-center items-center">
+            <h1 className="text-sm md:text-base font-black text-blue-600 uppercase tracking-widest m-0">🎤 Emcee</h1>
           </div>
 
           <ProjectorControl activeScreen={activeScreen} changeScreen={changeScreen} channel={channel} setPrizeDisplayed={setPrizeDisplayed} setTimerStatus={setTimerStatus} />
 
           {activeScreen === "programme" && (
-            <div className="bg-white rounded-2xl shadow-sm p-3 md:p-4 border-2 border-gray-200 animate-in slide-in-from-bottom-4 duration-300">
+            <div className="bg-white rounded-sm shadow-sm p-1.5 border border-gray-300">
                 <ProgrammeTab eventId={eventId} items={programmeItems} fetchData={fetchData} executeDbAction={executeDbAction} />
             </div>
           )}
@@ -294,10 +293,10 @@ export default function EmceePage() {
             </>
           )}
 
-          {/* NEW SAAS FEATURE: DJ Soundboard Button (Bottom Block instead of Floating) */}
+          {/* ULTRA-COMPACT DJ BUTTON */}
           <button 
             onClick={() => setIsDjDrawerOpen(true)} 
-            className="lg:hidden w-full bg-purple-600 hover:bg-purple-700 text-white font-black text-sm md:text-base py-4 rounded-2xl shadow-[0_4px_15px_rgba(147,51,234,0.3)] flex items-center justify-center gap-2 active:scale-95 transition-transform border-2 border-purple-500 mt-4"
+            className="lg:hidden w-full bg-purple-600 hover:bg-purple-700 text-white font-black text-[10px] md:text-xs py-2 rounded-sm flex items-center justify-center gap-1 transition-transform border border-purple-500 mt-1"
           >
             🎛️ OPEN SOUNDBOARD
           </button>
