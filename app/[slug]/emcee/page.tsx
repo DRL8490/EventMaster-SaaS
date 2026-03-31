@@ -11,7 +11,7 @@ import RaffleControl from "../../../components/emcee/RaffleControl";
 import GuestRoster from "../../../components/emcee/GuestRoster";
 
 // NEW SAAS FEATURE: Import Programme Tab
-import ProgrammeTab from "../../../components/admin/ProgrammeTab";
+import ProgrammeTab from "../../../components/emcee/ProgrammeTab";
 
 export default function EmceePage() {
   const params = useParams();
