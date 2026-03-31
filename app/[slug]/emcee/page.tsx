@@ -9,8 +9,6 @@ import ProjectorControl from "../../../components/emcee/ProjectorControl";
 import GamesControl from "../../../components/emcee/GamesControl";
 import RaffleControl from "../../../components/emcee/RaffleControl";
 import GuestRoster from "../../../components/emcee/GuestRoster";
-
-// NEW SAAS FEATURE: Import Programme Tab
 import ProgrammeTab from "../../../components/emcee/ProgrammeTab";
 
 export default function EmceePage() {
@@ -27,8 +25,6 @@ export default function EmceePage() {
   const [guests, setGuests] = useState<any[]>([]);
   const [unclaimedPrizes, setUnclaimedPrizes] = useState<any[]>([]);
   const [games, setGames] = useState<any[]>([]); 
-  
-  // NEW SAAS FEATURE: Programme State
   const [programmeItems, setProgrammeItems] = useState<any[]>([]);
 
   const [loading, setLoading] = useState(true);
@@ -40,10 +36,7 @@ export default function EmceePage() {
   
   const [prizeDisplayed, setPrizeDisplayed] = useState(false);
   
-  // UPDATED: Added "programme" to allowed types
   const [activeScreen, setActiveScreen] = useState<"pregame"|"raffle"|"games"|"qr"|"programme">("raffle");
-
-  // NEW SAAS FEATURE: Mobile DJ Drawer State
   const [isDjDrawerOpen, setIsDjDrawerOpen] = useState(false);
 
   const [timer, setTimer] = useState(60);
@@ -66,8 +59,6 @@ export default function EmceePage() {
     setLoading(true);
     const { data: guestData } = await supabase.from("guests").select("*").eq("event_id", eventId); 
     const { data: rsvpData } = await supabase.from("rsvps").select("*").eq("event_id", eventId); 
-    
-    // UPDATED: Fetch Games AND Programme
     const { data: gameData } = await supabase.from("games").select("*").eq("event_id", eventId).order("id", { ascending: true });
     const { data: programmeData } = await supabase.from("programme_items").select("*").eq("event_id", eventId).order("order_index", { ascending: true });
 
@@ -115,7 +106,6 @@ export default function EmceePage() {
     setLoading(false);
   };
 
-  // NEW SAAS FEATURE: Helper for Programme DB actions
   const executeDbAction = async (action: any) => {
     const { error } = await action;
     if (error) { alert("🚨 Database Error: " + error.message); console.error(error); }
@@ -161,10 +151,8 @@ export default function EmceePage() {
   const pauseTimer = () => { setTimerStatus("paused"); channel?.send({ type: "broadcast", event: "timer_sync", payload: { time: timer, status: "paused" }}); };
   const resumeTimer = () => { setTimerStatus("running"); channel?.send({ type: "broadcast", event: "timer_sync", payload: { time: timer, status: "running" }}); };
 
-  // UPDATED: Added programme to type signature
   const changeScreen = async (mode: "pregame" | "raffle" | "games" | "qr" | "programme") => {
     setActiveScreen(mode);
-    // Note: Programme doesn't send anything to the TV, it's just for the Emcee!
     if (mode !== "programme" && channel) await channel.send({ type: "broadcast", event: "set_display", payload: { mode: mode } });
   };
 
@@ -271,17 +259,22 @@ export default function EmceePage() {
   return (
     <div className="flex w-full min-h-screen bg-gray-100 font-sans relative">
       
-      {/* MAIN CONTENT WRAPPER: Full width on mobile, 85% on desktop */}
-      <div className="w-full lg:w-[85%] p-3 md:p-8 overflow-y-auto pb-32 flex flex-col items-center">
-        <div className="w-full max-w-5xl space-y-6">
-          <div className="bg-white rounded-3xl shadow-xl p-4 md:p-6 border-2 border-gray-200">
-            <h1 className="text-2xl md:text-3xl font-black text-blue-600 uppercase text-center tracking-widest">🎤 Emcee Director</h1>
+      {/* REDUCED PADDING: p-3 md:p-8 -> p-2 md:p-4 */}
+      <div className="w-full lg:w-[85%] p-2 md:p-4 overflow-y-auto pb-24 flex flex-col items-center">
+        
+        {/* TIGHTER VERTICAL SPACING: space-y-6 -> space-y-3 */}
+        <div className="w-full max-w-5xl space-y-3 md:space-y-4">
+          
+          {/* TIGHTER HEADER CARD: rounded-3xl p-4 -> rounded-2xl p-3 */}
+          <div className="bg-white rounded-2xl shadow-sm p-3 border-2 border-gray-200">
+            {/* TIGHTER TEXT: text-2xl -> text-xl */}
+            <h1 className="text-xl md:text-2xl font-black text-blue-600 uppercase text-center tracking-widest">🎤 Emcee Director</h1>
           </div>
 
           <ProjectorControl activeScreen={activeScreen} changeScreen={changeScreen} channel={channel} setPrizeDisplayed={setPrizeDisplayed} setTimerStatus={setTimerStatus} />
 
           {activeScreen === "programme" && (
-            <div className="bg-white rounded-3xl shadow-xl p-4 md:p-6 border-2 border-gray-200 animate-in slide-in-from-bottom-4 duration-300">
+            <div className="bg-white rounded-2xl shadow-sm p-3 md:p-4 border-2 border-gray-200 animate-in slide-in-from-bottom-4 duration-300">
                 <ProgrammeTab eventId={eventId} items={programmeItems} fetchData={fetchData} executeDbAction={executeDbAction} />
             </div>
           )}
@@ -300,18 +293,18 @@ export default function EmceePage() {
               <GuestRoster loading={loading} guests={guests} pendingProofGuest={pendingProofGuest} handleUploadProof={handleUploadProof} fetchData={fetchData} />
             </>
           )}
+
+          {/* NEW SAAS FEATURE: DJ Soundboard Button (Bottom Block instead of Floating) */}
+          <button 
+            onClick={() => setIsDjDrawerOpen(true)} 
+            className="lg:hidden w-full bg-purple-600 hover:bg-purple-700 text-white font-black text-sm md:text-base py-4 rounded-2xl shadow-[0_4px_15px_rgba(147,51,234,0.3)] flex items-center justify-center gap-2 active:scale-95 transition-transform border-2 border-purple-500 mt-4"
+          >
+            🎛️ OPEN SOUNDBOARD
+          </button>
+
         </div>
       </div>
 
-      {/* NEW SAAS FEATURE: Mobile Floating Action Button (FAB) for Soundboard */}
-      <button 
-        onClick={() => setIsDjDrawerOpen(true)} 
-        className="lg:hidden fixed bottom-6 right-6 bg-purple-600 hover:bg-purple-700 text-white rounded-full w-16 h-16 shadow-[0_10px_25px_rgba(147,51,234,0.5)] z-30 flex items-center justify-center text-3xl active:scale-90 transition-transform border-4 border-white"
-      >
-        🎛️
-      </button>
-
-      {/* DJ BOARD: Receives state to act as a drawer on mobile */}
       <DjBoard playSound={playSound} isOpen={isDjDrawerOpen} onClose={() => setIsDjDrawerOpen(false)} />
     
     </div>
