@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { supabase } from "../../../lib/supabaseClient";
 import { toPng } from "html-to-image";
+// NEW SAAS FEATURE: Import Next.js Image Optimizer
+import Image from "next/image";
 
 export default function MemoryPage() {
   const params = useParams();
@@ -21,10 +23,8 @@ export default function MemoryPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // FIXED: Removed 'absolute' positioning so it acts as a header block inside the thick border
   const LargeWatermark = () => {
     const textSize = eventName.length > 20 ? "text-[8px] md:text-[10px]" : "text-[10px] md:text-[12px]";
-    
     return (
       <div className={`w-full mb-3 bg-gradient-to-r from-pink-500 via-purple-500 to-yellow-400 text-white ${textSize} font-black px-2 md:px-3 py-1.5 md:py-2 rounded-lg shadow-sm tracking-wider uppercase text-center flex items-center justify-center`}>
         <span className="line-clamp-1 leading-tight break-words">🎉 {eventName} 🎈</span>
@@ -32,10 +32,8 @@ export default function MemoryPage() {
     );
   };
 
-  // TinyWatermark stays absolute for the circular Party Squad avatars
   const TinyWatermark = () => {
     const textSize = eventName.length > 20 ? "text-[4px] md:text-[6px]" : "text-[5px] md:text-[8px]";
-    
     return (
       <div className={`absolute -top-1 -right-2 md:-top-2 md:-right-4 bg-gradient-to-r from-pink-500 to-yellow-400 text-white ${textSize} font-black px-1.5 py-0.5 md:px-2 md:py-1 rounded-md md:rounded-2xl shadow-md transform rotate-6 border border-white z-0 pointer-events-none tracking-wider uppercase text-center max-w-[75%] md:max-w-[65%] flex items-center justify-center`}>
         <span className="line-clamp-2 leading-tight break-words">🎉 {eventName}</span>
@@ -80,9 +78,7 @@ export default function MemoryPage() {
           pixelRatio: 2, 
           filter: (node: any) => {
               const el = node as HTMLElement;
-              if (el?.hasAttribute && el.hasAttribute('data-ignore')) {
-                  return false;
-              }
+              if (el?.hasAttribute && el.hasAttribute('data-ignore')) return false;
               return true;
           }
       };
@@ -111,7 +107,6 @@ export default function MemoryPage() {
 
   useEffect(() => {
     if (!eventSlug) return;
-
     const fetchEventId = async () => {
       const { data: eventData, error } = await supabase.from("events").select("id, name").eq("slug", eventSlug).single();
       if (error || !eventData) {
@@ -122,7 +117,6 @@ export default function MemoryPage() {
       setEventId(eventData.id);
       setEventName(eventData.name);
     };
-
     fetchEventId();
   }, [eventSlug]);
 
@@ -139,9 +133,7 @@ export default function MemoryPage() {
         setRaffleWinners(guests.filter((g: any) => g.status === "won" && g.proof_url));
       }
 
-      if (games) {
-        setGameWinners(games.filter((g: any) => g.proof_url));
-      }
+      if (games) setGameWinners(games.filter((g: any) => g.proof_url));
       if (uploads) setGuestUploads(uploads);
 
       setLoading(false);
@@ -222,14 +214,11 @@ export default function MemoryPage() {
               )}
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
                   {raffleWinners.map(w => (
-                      // FIXED: Increased padding to p-3 md:p-4 to create thicker border
                       <div id={`raffle-card-${w.id}`} key={`raffle-${w.id}`} className="bg-white p-3 md:p-4 rounded-2xl shadow-xl transform rotate-2 hover:rotate-0 transition-all group relative">
-                          
-                          {/* FIXED: Banner moved outside of the image container to sit in the thick border */}
                           <LargeWatermark /> 
-                          
-                          <div className="relative overflow-hidden rounded-xl border-2 border-gray-100 bg-white">
-                              <img src={w.proof_url} alt={w.nickname} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
+                          <div className="relative overflow-hidden rounded-xl border-2 border-gray-100 bg-gray-100">
+                              {/* OPTIMIZED IMAGE: 400x400 limit */}
+                              <Image src={w.proof_url} alt={w.nickname} width={400} height={400} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
                               <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                                   <button onClick={() => captureAndDownload(`raffle-card-${w.id}`, `${eventSlug}-${w.nickname}-Winner.png`)} className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm active:scale-90 shadow-lg text-xs md:text-sm">⬇️</button>
                               </div>
@@ -241,14 +230,11 @@ export default function MemoryPage() {
                       </div>
                   ))}
                   {gameWinners.map(g => (
-                      // FIXED: Increased padding to p-3 md:p-4
                       <div id={`game-card-${g.id}`} key={`game-${g.id}`} className="bg-white p-3 md:p-4 rounded-2xl shadow-xl transform -rotate-2 hover:rotate-0 transition-all group relative">
-                          
-                          {/* FIXED: Banner moved outside of the image container */}
                           <LargeWatermark />
-                          
-                          <div className="relative overflow-hidden rounded-xl border-2 border-gray-100 bg-white">
-                              <img src={g.proof_url} alt={g.name} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
+                          <div className="relative overflow-hidden rounded-xl border-2 border-gray-100 bg-gray-100">
+                              {/* OPTIMIZED IMAGE: 400x400 limit */}
+                              <Image src={g.proof_url} alt={g.name} width={400} height={400} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
                               <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100">
                                   <button onClick={() => captureAndDownload(`game-card-${g.id}`, `${eventSlug}-${g.name}-Winner.png`)} className="bg-black/50 hover:bg-black/70 text-white p-2 rounded-full backdrop-blur-sm active:scale-90 shadow-lg text-xs md:text-sm">⬇️</button>
                               </div>
@@ -283,14 +269,11 @@ export default function MemoryPage() {
             ) : (
                 <div className="columns-2 md:columns-3 lg:columns-4 gap-4 space-y-4 pt-4">
                     {filteredUploads.map((photo) => (
-                        // FIXED: Added p-3 md:p-4 to give Live Gallery photos a thick Polaroid border too
                         <div id={`live-card-${photo.id}`} key={`photo-${photo.id}`} className="break-inside-avoid relative group rounded-2xl p-3 md:p-4 shadow-lg border-2 border-pink-500/30 bg-gray-800">
-                            
-                            {/* FIXED: Banner moved outside of the image container */}
                             <LargeWatermark />
-                            
-                            <div className="relative rounded-xl overflow-hidden">
-                                <img src={photo.photo_url} alt="Guest Upload" className="w-full h-auto object-cover block" loading="lazy" crossOrigin="anonymous" />
+                            <div className="relative rounded-xl overflow-hidden bg-gray-900">
+                                {/* OPTIMIZED IMAGE: 600x600 limit, maintaining aspect ratio */}
+                                <Image src={photo.photo_url} alt="Guest Upload" width={600} height={600} className="w-full h-auto object-cover block" crossOrigin="anonymous" />
                                 <div data-ignore="true" className="absolute top-2 left-2 transition-all duration-300 opacity-100 md:opacity-0 md:group-hover:opacity-100 z-10">
                                     <button onClick={() => captureAndDownload(`live-card-${photo.id}`, `${eventSlug}-Memory-${photo.id}.png`)} className="bg-black/50 hover:bg-black/70 text-white p-2 md:p-2.5 rounded-full backdrop-blur-md active:scale-90 shadow-lg text-xs md:text-sm">⬇️</button>
                                 </div>
@@ -312,8 +295,9 @@ export default function MemoryPage() {
                 {filteredGuests.map(g => (
                     <div id={`bubble-card-${g.id}`} key={`guest-${g.id}`} className="flex flex-col items-center w-auto group relative p-4 pt-8 pr-8 bg-transparent">
                         <div className="relative">
-                            <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.5)] bg-white relative">
-                                <img src={g.photo_url} alt={g.nickname} className="w-full h-full object-cover" crossOrigin="anonymous" />
+                            <div className="w-32 h-32 md:w-40 md:h-40 rounded-full overflow-hidden border-4 border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.5)] bg-gray-100 relative">
+                                {/* OPTIMIZED IMAGE: 200x200 limit */}
+                                <Image src={g.photo_url} alt={g.nickname} width={200} height={200} className="w-full h-full object-cover" crossOrigin="anonymous" />
                             </div>
                             <TinyWatermark />
                         </div>
